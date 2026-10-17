@@ -85,7 +85,9 @@ struct PigeonClient {
             code: code, controller: .init(name: controllerName, id: controllerID)))
     }
 
-    /// Ask the device to show its pairing code full screen (open endpoint, unclaimed devices only).
+    /// Ask the device to show its pairing code full screen. Open endpoint; it works on claimed devices too,
+    /// since seeing the screen is the proof of presence. That is how a second phone (or a phone that lost
+    /// its pairing) is added. Claiming with this phone's controller id replaces its old entry.
     func pairStart() async throws {
         let _: PairStartResponse = try await send("POST", "/pair/start")
     }
