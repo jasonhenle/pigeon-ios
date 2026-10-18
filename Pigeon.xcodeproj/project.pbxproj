@@ -299,7 +299,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.jasonhenle.pigeon;
 				PRODUCT_NAME = Pigeon;
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -392,7 +392,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.jasonhenle.pigeon;
 				PRODUCT_NAME = Pigeon;
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
