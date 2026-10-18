@@ -51,6 +51,8 @@ final class SearchModel: ObservableObject {
 
     func queryChanged() {
         debounce?.cancel()
+        results = []
+        errorText = nil
         let q = query.trimmingCharacters(in: .whitespaces)
         guard q.count >= 2 else { results = []; isSearching = false; return }
         debounce = Task { [weak self] in
@@ -62,7 +64,10 @@ final class SearchModel: ObservableObject {
                 let r = try await client.suggest(q)
                 if !Task.isCancelled { self.results = r; self.errorText = nil }
             } catch {
-                if !Task.isCancelled { self.errorText = error.localizedDescription }
+                if !Task.isCancelled {
+                    self.results = []
+                    self.errorText = error.localizedDescription
+                }
             }
         }
     }
@@ -141,7 +146,7 @@ struct SearchView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    if model.results.isEmpty, model.query.count >= 2, !model.isSearching {
+                    if model.results.isEmpty, model.query.count >= 2, !model.isSearching, model.errorText == nil {
                         Text("No matches").font(Theme.ui(15)).foregroundStyle(Theme.secondaryText)
                             .padding(.top, 24)
                     }
