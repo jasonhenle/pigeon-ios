@@ -92,13 +92,33 @@ final class ClientTests: XCTestCase {
         XCTAssertEqual(paths, ["POST /api/v1/pair/start", "POST /api/v1/pair/cancel"])
     }
 
-    func testPairStartRefusedWhenClaimed() async {
-        StubURLProtocol.handler = { _ in
-            (403, #"{"error":{"code":"already_claimed","message":"Device already has a controller.","details":{}}}"#.data(using: .utf8)!)
+    /// A claimed device still shows its code on request (the screen is the proof of presence), so a second
+    /// phone, or a phone that lost its pairing, can pair with the on-screen code and no invite.
+    func testRepairingClaimedDeviceWithOnScreenCode() async throws {
+        var calls: [String] = []
+        var claimedID: String?
+        StubURLProtocol.handler = { req in
+            calls.append("\(req.httpMethod ?? "") \(req.url?.path ?? "")")
+            XCTAssertNil(req.value(forHTTPHeaderField: "Authorization"))
+            if req.url?.path.hasSuffix("/claim") == true {
+                let body = req.httpBodyStream.map { s -> Data in
+                    s.open(); defer { s.close() }
+                    var d = Data(); var buf = [UInt8](repeating: 0, count: 1024)
+                    while s.hasBytesAvailable { let n = s.read(&buf, maxLength: 1024); if n <= 0 { break }; d.append(buf, count: n) }
+                    return d
+                } ?? req.httpBody ?? Data()
+                let obj = try? JSONSerialization.jsonObject(with: body) as? [String: Any]
+                claimedID = (obj?["controller"] as? [String: Any])?["id"] as? String
+                return (200, #"{"token":"pgt_new","device":{"id":"dev-1","name":"Den"}}"#.data(using: .utf8)!)
+            }
+            return (200, #"{"expires_in_s":120}"#.data(using: .utf8)!)
         }
-        do { try await client(token: nil).pairStart(); XCTFail() } catch {
-            XCTAssertEqual(error as? PigeonError, .api(status: 403, code: "already_claimed", message: "Device already has a controller."))
-        }
+        let c = client(token: nil)
+        try await c.pairStart()
+        let r = try await c.claim(code: "482913", controllerName: "Jason's iPhone", controllerID: "phone-uuid")
+        XCTAssertEqual(calls, ["POST /api/v1/pair/start", "POST /api/v1/claim"])
+        XCTAssertEqual(claimedID, "phone-uuid")  // same id replaces the phone's old entry on the device
+        XCTAssertEqual(r.token, "pgt_new")
     }
 
     func testNowPlayingDetailDecoding() async throws {

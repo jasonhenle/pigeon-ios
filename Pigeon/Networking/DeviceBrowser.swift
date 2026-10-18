@@ -14,6 +14,8 @@ struct DiscoveredDevice: Identifiable, Equatable {
 final class DeviceBrowser: ObservableObject {
     @Published private(set) var devices: [DiscoveredDevice] = []
     @Published private(set) var isBrowsing = false
+    /// True when the browse can't run, usually because Local Network access was denied.
+    @Published private(set) var isBlocked = false
     private var browser: NWBrowser?
 
     func start() {
@@ -23,7 +25,8 @@ final class DeviceBrowser: ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 switch state {
-                case .ready: self.isBrowsing = true
+                case .ready: self.isBrowsing = true; self.isBlocked = false
+                case .waiting: self.isBlocked = true
                 case .failed, .cancelled: self.isBrowsing = false; self.browser = nil
                 default: break
                 }
@@ -48,6 +51,7 @@ final class DeviceBrowser: ObservableObject {
         browser?.cancel()
         browser = nil
         isBrowsing = false
+        isBlocked = false
     }
 
     /// Resolve a Bonjour service endpoint to a numeric host and the API port.
@@ -75,7 +79,9 @@ final class DeviceBrowser: ObservableObject {
     }
 }
 
-private final class ResumeOnce {
+/// Resumes a continuation at most once. The lock guards `cont`, which makes it safe to share with the
+/// connection handler and the timeout closure.
+private final class ResumeOnce: @unchecked Sendable {
     private var cont: CheckedContinuation<(host: String, port: Int)?, Never>?
     private let lock = NSLock()
     init(_ c: CheckedContinuation<(host: String, port: Int)?, Never>) { cont = c }

@@ -9,6 +9,7 @@ struct AddDeviceView: View {
     @State private var target: Target?
     @State private var manualAddress = ""
     @State private var manualError: String?
+    @State private var searchTimedOut = false
 
     /// Where a claim is headed once the user types the on-screen code.
     struct Target: Identifiable {
@@ -29,11 +30,22 @@ struct AddDeviceView: View {
                         LCDLabel(text: "Nearby", size: 18, color: Theme.accent)
                         let fresh = browser.devices.filter { d in !store.devices.contains { $0.id == d.id } }
                         if fresh.isEmpty {
-                            HStack(spacing: 10) {
-                                ProgressView()
-                                Text("Looking for Pigeons on this network…").font(Theme.ui(15))
-                                    .foregroundStyle(Theme.secondaryText)
-                            }.tile()
+                            if browser.isBlocked {
+                                setupHelp(title: "Local Network access is off",
+                                          steps: ["Open Settings > Privacy & Security > Local Network.",
+                                                  "Turn on Pigeon, then come back here."])
+                            } else if searchTimedOut {
+                                setupHelp(title: "No Pigeons found yet",
+                                          steps: ["Join the same Wi-Fi network as your Pigeon.",
+                                                  "On the Pigeon, turn on the Control API. It's off by default: start PigeonOS with PIGEON_CONTROL_API=1, or set \"control_api\": true in ~/.pigeon_0_6/state.json and restart.",
+                                                  "Still nothing? Add it by address below."])
+                            } else {
+                                HStack(spacing: 10) {
+                                    ProgressView()
+                                    Text("Looking for Pigeons on this network…").font(Theme.ui(15))
+                                        .foregroundStyle(Theme.secondaryText)
+                                }.tile()
+                            }
                         }
                         ForEach(fresh) { d in
                             Button { Task { await pick(d) } } label: {
@@ -67,6 +79,10 @@ struct AddDeviceView: View {
                     .padding(Theme.gutter)
                 }
             }
+            .task {
+                try? await Task.sleep(for: .seconds(8))
+                searchTimedOut = true
+            }
             .navigationTitle("Add device")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
@@ -74,6 +90,15 @@ struct AddDeviceView: View {
                 ClaimView(target: t) { dismiss() }
             }
         }
+    }
+
+    private func setupHelp(title: String, steps: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(Theme.uiBold(16))
+            ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
+                Text("\(i + 1). \(step)").font(Theme.ui(14)).foregroundStyle(Theme.secondaryText)
+            }
+        }.frame(maxWidth: .infinity, alignment: .leading).tile()
     }
 
     private func pick(_ d: DiscoveredDevice) async {
@@ -90,8 +115,6 @@ struct AddDeviceView: View {
             try await PigeonClient(host: t.host, port: t.port).pairStart()
             manualError = nil
             target = t
-        } catch PigeonError.api(_, "already_claimed", _) {
-            manualError = "\(t.name) already has a controller. Use Invite from the phone it's paired with."
         } catch {
             manualError = error.localizedDescription
         }
