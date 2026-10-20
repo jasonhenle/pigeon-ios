@@ -71,6 +71,9 @@ struct Suggestion: Codable, Equatable, Identifiable {
     var kind: String?
     var title: String
     var year: Int?
+    /// TMDb artwork, when the device has it: the title-treatment logo and the poster.
+    var logoUrl: String?
+    var posterUrl: String?
     var id: String { "\(tmdbId ?? 0)-\(kind ?? "")-\(title)-\(year ?? 0)" }
 
     var subtitle: String {
@@ -228,3 +231,18 @@ struct DisplayInfo: Codable, Equatable {
 }
 
 struct DisplayPatch: Codable { var brightness: Int }
+
+// MARK: Maintenance
+
+struct UpdateInfo: Codable, Equatable {
+    var localVersion: String
+    var remoteVersion: String?
+    var updateAvailable: Bool
+    var error: String?
+    var applying: Bool
+}
+
+struct StateReply: Codable, Equatable { var state: String }
+
+struct PairingRequest: Codable { var kind: String }
+
