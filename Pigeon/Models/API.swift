@@ -13,6 +13,22 @@ struct Hello: Codable, Equatable {
     var setupMode: Bool
     /// Present on firmware that serves HTTPS; absent on older devices (plain HTTP only).
     var tls: TLSInfo?
+    /// First-run setup progress; absent on firmware before 0.12.122.
+    var setup: SetupInfo?
+}
+
+/// The device's first-run setup (spec section 2.4). `state` is `welcome`, `app` or `done`.
+struct SetupInfo: Codable, Equatable {
+    var state: String
+    var step: String?
+    var skipped: [String]
+
+    var isDone: Bool { state == "done" }
+}
+
+struct SetupProgress: Codable {
+    var step: String?
+    var skipped: [String]?
 }
 
 struct TLSInfo: Codable, Equatable {
@@ -257,6 +273,27 @@ struct PairingRequest: Codable { var kind: String }
 
 // MARK: Sports (Settings > Pigeon > SPORTS)
 
+/// One full-screen visualizer in the device's rotation (`GET /visualizer`).
+struct VisualizerPreset: Codable, Equatable, Identifiable {
+    var index: Int
+    var name: String
+    var style: String
+    /// The style's description, e.g. "Dot matrix".
+    var kind: String
+    var id: Int { index }
+}
+
+struct VisualizerState: Codable, Equatable {
+    var presets: [VisualizerPreset]
+    var active: Int
+    var vizLock: Bool
+}
+
+struct VisualizerPatch: Codable {
+    var active: Int?
+    var vizLock: Bool?
+}
+
 struct SportsLeague: Codable, Equatable, Identifiable {
     var id: String
     var name: String
@@ -266,7 +303,7 @@ struct SportsLeague: Codable, Equatable, Identifiable {
 }
 
 /// A game from TODAY'S GAMES or on the scoreboard. Scores are nil before kickoff
-/// and whenever the device has SCORES set to HIDE.
+/// (and from older devices with SCORES set to HIDE).
 struct SportsGame: Codable, Equatable, Identifiable {
     var id: String
     var league: String
@@ -284,8 +321,9 @@ struct SportsGame: Codable, Equatable, Identifiable {
 }
 
 struct SportsSettings: Codable, Equatable {
+    /// SPORTS on / off (the API's name predates the switch; it was SCORES show / hide).
     var scoresShown: Bool
-    /// FOLLOWED TEAMS as set; `followedActive` is whether it runs (needs scores shown).
+    /// FOLLOWED TEAMS as set; `followedActive` is whether it runs (needs sports on).
     var followedAuto: Bool
     var followedActive: Bool
     var leagues: [SportsLeague]

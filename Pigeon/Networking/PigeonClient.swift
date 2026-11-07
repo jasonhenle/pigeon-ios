@@ -154,6 +154,17 @@ struct PigeonClient {
         try await sendNoContent("DELETE", "/controllers/\(id)")
     }
 
+    // MARK: First-run setup
+
+    func setup() async throws -> SetupInfo { try await send("GET", "/setup") }
+
+    func setSetupProgress(step: String?, skipped: [String]? = nil) async throws -> SetupInfo {
+        try await send("PUT", "/setup", body: SetupProgress(step: step, skipped: skipped))
+    }
+
+    /// Ends setup: the device drops its "Continue on your iPhone" screen.
+    func completeSetup() async throws -> SetupInfo { try await send("POST", "/setup/complete") }
+
     func device() async throws -> DeviceInfo { try await send("GET", "/device") }
     func capabilities() async throws -> Capabilities { try await send("GET", "/capabilities") }
     func status() async throws -> DeviceStatus { try await send("GET", "/status") }
@@ -268,6 +279,12 @@ struct PigeonClient {
     }
 
     // MARK: Sports
+
+    func visualizer() async throws -> VisualizerState { try await send("GET", "/visualizer") }
+
+    func patchVisualizer(_ patch: VisualizerPatch) async throws -> VisualizerState {
+        try await send("PATCH", "/visualizer", body: patch)
+    }
 
     func sports() async throws -> SportsSettings { try await send("GET", "/sports") }
 

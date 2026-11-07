@@ -69,6 +69,7 @@ struct DeviceRow: View {
 
 struct DeviceDetailView: View {
     @EnvironmentObject private var store: DeviceStore
+    @EnvironmentObject private var setup: SetupCoordinator
     @Environment(\.dismiss) private var dismiss
     let device: KnownDevice
 
@@ -80,12 +81,29 @@ struct DeviceDetailView: View {
     @State private var name = ""
     @State private var errorText: String?
     @State private var confirmRemove = false
+    /// Setup on the device is not finished (the user left the wizard with "Later").
+    @State private var setupPending = false
 
     var body: some View {
         ZStack {
             Theme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    if setupPending {
+                        Button { setup.request = .device(id: device.id) } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Finish setting up").font(Theme.uiBold(18)).foregroundStyle(.white)
+                                    Text("Location, player and audio").font(Theme.ui(14))
+                                        .foregroundStyle(Theme.secondaryText)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right").foregroundStyle(Theme.accent)
+                            }
+                            .tile(selected: true)
+                        }
+                        .buttonStyle(.plain)
+                    }
                     VStack(alignment: .leading, spacing: 8) {
                         LCDLabel(text: "Name", size: 18, color: Theme.accent)
                         TextField("Name", text: $name)
@@ -138,6 +156,9 @@ struct DeviceDetailView: View {
         } catch { errorText = error.localizedDescription }
         if caps?.capabilities.contains("pigeon_settings") == true {
             clockSettings = try? await c.pigeonSettings()
+        }
+        if caps?.capabilities.contains("setup") == true, let s = try? await c.setup() {
+            setupPending = !s.isDone
         }
     }
 
@@ -199,6 +220,7 @@ private struct PigeonClockSettingsPage: View {
                     if caps.contains("rooms") {
                         RoomsCard(client: client, canReset: caps.contains("room_reset")).id(reload)
                     }
+                    if caps.contains("viz") { visualizer }
                     if caps.contains("sports") { sports }
                     if hasSettings || caps.contains("display_brightness") {
                         CollapsibleTile(title: "Display") { display }
@@ -215,6 +237,22 @@ private struct PigeonClockSettingsPage: View {
         }
         .toolbar { if settings.busy { ToolbarItem(placement: .topBarTrailing) { ProgressView() } } }
         .task(id: reload) { if hasSettings { await settings.load() } }
+    }
+
+    private var visualizer: some View {
+        NavigationLink { VisualizerView(client: client) } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    LCDLabel(text: "Visualizer", size: 18, color: Theme.accent)
+                    Text("Pick the visualizer, and Viz Lock")
+                        .font(Theme.ui(13)).foregroundStyle(Theme.secondaryText)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").foregroundStyle(Theme.inactive)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading).tile()
+        }
+        .buttonStyle(.plain)
     }
 
     private var sports: some View {
@@ -245,15 +283,7 @@ private struct PigeonClockSettingsPage: View {
                           labels: ["zone11": "Zone 11", "zone63": "Zone 6,3"],
                           note: d.options["np_layout"] == "zone63"
                               ? "Wide title, with the volume beside it."
-                              : "Title across the top, with input, volume and running time below it.")
-                // Zone 11's own look; Pigeon only offers it while the layout is Zone 11.
-                if d.options["np_layout"] != "zone63" {
-                    OptionRow(model: settings, data: d, key: "zone11_style", title: "Zone 11 style",
-                              labels: ["standard": "Zone 11", "alt": "11 Alt"],
-                              note: d.options["zone11_style"] == "alt"
-                                  ? "No input, clock or volume; the title grows to fill the top."
-                                  : "Input, clock and volume along the top.")
-                }
+                              : "Large title across the top, with the running time below it.")
                 OptionRow(model: settings, data: d, key: "zone4_mode", title: "Playback bar",
                           labels: ["info": "Info", "visualizer": "Visualizer"])
             } else {
