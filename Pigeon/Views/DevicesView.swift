@@ -26,9 +26,11 @@ struct DevicesView: View {
                             }.padding(.top, 40)
                         }
                         ForEach(store.devices) { d in
-                            NavigationLink(value: d) { DeviceRow(device: d, selected: d.id == store.selectedID) }
-                                .buttonStyle(.plain)
-                                .simultaneousGesture(TapGesture().onEnded { store.selectedID = d.id })
+                            NavigationLink(value: d) {
+                                DeviceRow(device: d, client: store.client(for: d), selected: d.id == store.selectedID)
+                            }
+                            .buttonStyle(.plain)
+                            .simultaneousGesture(TapGesture().onEnded { store.selectedID = d.id })
                         }
                         Text("App version \(Self.appVersion)")
                             .font(Theme.ui(13)).foregroundStyle(Theme.secondaryText)
@@ -50,166 +52,74 @@ struct DevicesView: View {
 }
 
 
+/// A Pigeon in the list: its name, and what it is playing as Pigeon shows it
+/// (the title's logo over its backdrop, or the song over its album art).
 struct DeviceRow: View {
     let device: KnownDevice
+    let client: PigeonClient
     let selected: Bool
+    @StateObject private var glance = DeviceGlanceModel()
+
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 LCDLabel(text: device.name, size: 26)
                 Text(device.product == "marquee" ? "Pigeon Marquee" : "Pigeon Clock")
                     .font(Theme.ui(14)).foregroundStyle(Theme.secondaryText)
             }
-            Spacer()
+            Spacer(minLength: 0)
+            if let np = glance.nowPlaying, np.title?.isEmpty == false {
+                NowPlayingArtView(nowPlaying: np, client: client, compact: true)
+                    .frame(width: 136)
+            }
             Image(systemName: "chevron.right").foregroundStyle(Theme.inactive)
         }
         .tile(selected: selected)
+        .onAppear { glance.start(client, deviceID: device.id) }
+        .onChange(of: client.cacheKey("")) { _, _ in glance.start(client, deviceID: device.id) }
+        .onDisappear { glance.stop() }
     }
 }
 
+/// One Pigeon: clock settings, what it is playing, display and theme, visualizer, sports, system.
 struct DeviceDetailView: View {
+    @EnvironmentObject private var store: DeviceStore
+    let device: KnownDevice
+
+    var body: some View {
+        DevicePage(client: store.client(for: device), device: device)
+            .id(store.client(for: device).cacheKey(""))  // a new address: start over with a client that reaches it
+            .navigationTitle(device.name)
+            .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct DevicePage: View {
     @EnvironmentObject private var store: DeviceStore
     @EnvironmentObject private var setup: SetupCoordinator
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var settings: PigeonSettingsModel
+    let client: PigeonClient
     let device: KnownDevice
 
     @State private var info: DeviceInfo?
-    @State private var caps: Capabilities?
+    @State private var capabilities: Capabilities?
     @State private var status: DeviceStatus?
-    /// The device's clock settings (hours, time zone) for the live clock on the settings button.
-    @State private var clockSettings: PigeonSettings?
     @State private var name = ""
     @State private var errorText: String?
     @State private var confirmRemove = false
     /// Setup on the device is not finished (the user left the wizard with "Later").
     @State private var setupPending = false
-
-    var body: some View {
-        ZStack {
-            Theme.canvas.ignoresSafeArea()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    if setupPending {
-                        Button { setup.request = .device(id: device.id) } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Finish setting up").font(Theme.uiBold(18)).foregroundStyle(.white)
-                                    Text("Location, player and audio").font(Theme.ui(14))
-                                        .foregroundStyle(Theme.secondaryText)
-                                }
-                                Spacer()
-                                Image(systemName: "chevron.right").foregroundStyle(Theme.accent)
-                            }
-                            .tile(selected: true)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    VStack(alignment: .leading, spacing: 8) {
-                        LCDLabel(text: "Name", size: 18, color: Theme.accent)
-                        TextField("Name", text: $name)
-                            .font(Theme.uiBold(20))
-                            .submitLabel(.done)
-                            .onSubmit { Task { await rename() } }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading).tile()
-
-                    PlayingNowSection(device: device)
-
-                    NavigationLink {
-                        PigeonClockSettingsView(device: device, caps: caps, info: info, status: status)
-                    } label: {
-                        PigeonClockSettingsButton(settings: clockSettings)
-                    }
-                    .buttonStyle(.plain)
-
-                    if let errorText { Text(errorText).font(Theme.ui(14)).foregroundStyle(Theme.bad) }
-
-                    Button(role: .destructive) { confirmRemove = true } label: {
-                        Text("Remove from this device").font(Theme.uiBold(16))
-                            .frame(maxWidth: .infinity).padding(.vertical, 14)
-                            .background(Theme.tile, in: RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
-                    }
-                }
-                .padding(Theme.gutter)
-            }
-        }
-        .navigationTitle(device.name)
-        .navigationBarTitleDisplayMode(.inline)
-        .task { await load() }
-        .alert("Remove \(device.name)?", isPresented: $confirmRemove) {
-            Button("Remove", role: .destructive) {
-                Task { await store.unpair(device); dismiss() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: { Text("The Pigeon keeps working. Add it again with its on-screen code.") }
-    }
-
-    private func load() async {
-        let c = store.client(for: device)
-        do {
-            async let i = c.device()
-            async let k = c.capabilities()
-            async let s = c.status()
-            (info, caps, status) = try await (i, k, s)
-            name = info?.name ?? device.name
-            errorText = nil
-        } catch { errorText = error.localizedDescription }
-        if caps?.capabilities.contains("pigeon_settings") == true {
-            clockSettings = try? await c.pigeonSettings()
-        }
-        if caps?.capabilities.contains("setup") == true, let s = try? await c.setup() {
-            setupPending = !s.isDone
-        }
-    }
-
-    private func rename() async {
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty, trimmed != device.name else { return }
-        do {
-            let updated: DeviceInfo = try await store.client(for: device)
-                .send("PATCH", "/device", body: ["name": trimmed])
-            store.rename(id: device.id, to: updated.name)
-            errorText = nil
-        } catch { errorText = error.localizedDescription }
-    }
-}
-
-/// The device's Settings > Pigeon page on one screen: rooms and sports up top, then
-/// Display, Theme, Clock and System as collapsible sections.
-struct PigeonClockSettingsView: View {
-    @EnvironmentObject private var store: DeviceStore
-    let device: KnownDevice
-    let caps: Capabilities?
-    let info: DeviceInfo?
-    let status: DeviceStatus?
-
-    var body: some View {
-        PigeonClockSettingsPage(client: store.client(for: device), device: device,
-                                caps: caps?.capabilities ?? [], info: info, status: status)
-            .navigationTitle("Pigeon Clock Settings")
-            .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-private struct PigeonClockSettingsPage: View {
-    @StateObject private var settings: PigeonSettingsModel
     /// Bumped after a reset so everything re-reads the device.
     @State private var reload = 0
-    let client: PigeonClient
-    let device: KnownDevice
-    let caps: [String]
-    let info: DeviceInfo?
-    let status: DeviceStatus?
 
-    init(client: PigeonClient, device: KnownDevice, caps: [String], info: DeviceInfo?, status: DeviceStatus?) {
+    init(client: PigeonClient, device: KnownDevice) {
         _settings = StateObject(wrappedValue: PigeonSettingsModel(client: client))
         self.client = client
         self.device = device
-        self.caps = caps
-        self.info = info
-        self.status = status
     }
 
+    private var caps: [String] { capabilities?.capabilities ?? [] }
     private var hasSettings: Bool { caps.contains("pigeon_settings") }
 
     var body: some View {
@@ -217,35 +127,71 @@ private struct PigeonClockSettingsPage: View {
             Theme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    if caps.contains("rooms") {
-                        RoomsCard(client: client, canReset: caps.contains("room_reset")).id(reload)
-                    }
-                    if caps.contains("viz") { visualizer }
-                    if caps.contains("sports") { sports }
-                    if hasSettings || caps.contains("display_brightness") {
-                        CollapsibleTile(title: "Display") { display }
-                    }
+                    if setupPending { finishSetup }
                     if hasSettings {
-                        CollapsibleTile(title: "Theme") { theme }
-                        CollapsibleTile(title: "Clock") { clock }
+                        NavigationLink { ClockSettingsView(model: settings) } label: {
+                            PigeonClockSettingsButton(settings: settings.data)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    PlayingNowSection(device: device)
+                    if hasSettings || caps.contains("display_brightness") {
+                        CollapsibleTile(title: "Display and Theme") { displayAndTheme }
+                    }
+                    if caps.contains("viz") {
+                        linkTile("Visualizer", "Pick the visualizer, and Viz Lock") { VisualizerView(client: client) }
+                    }
+                    if caps.contains("sports") {
+                        linkTile("Sports", "Scores, followed teams and today's games") { SportsView(client: client) }
                     }
                     CollapsibleTile(title: "System") { system }
-                    if let e = settings.errorText { Text(e).font(Theme.ui(13)).foregroundStyle(Theme.bad) }
+                    if let e = errorText ?? settings.errorText {
+                        Text(e).font(Theme.ui(13)).foregroundStyle(Theme.bad)
+                    }
                 }
                 .padding(Theme.gutter)
             }
         }
         .toolbar { if settings.busy { ToolbarItem(placement: .topBarTrailing) { ProgressView() } } }
-        .task(id: reload) { if hasSettings { await settings.load() } }
+        .task(id: reload) { await load() }
+        .onChange(of: settings.data) { _, d in
+            if let d { ThemeStore.shared.remember(ThemeStore.key(for: d), for: device.id) }
+        }
+        .alert("Remove \(device.name)?", isPresented: $confirmRemove) {
+            Button("Remove", role: .destructive) {
+                Task {
+                    await store.unpair(device)
+                    ThemeStore.shared.forget(device.id)
+                    dismiss()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("The Pigeon keeps working. Add it again with its on-screen code.") }
     }
 
-    private var visualizer: some View {
-        NavigationLink { VisualizerView(client: client) } label: {
+    private var finishSetup: some View {
+        Button { setup.request = .device(id: device.id) } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    LCDLabel(text: "Visualizer", size: 18, color: Theme.accent)
-                    Text("Pick the visualizer, and Viz Lock")
-                        .font(Theme.ui(13)).foregroundStyle(Theme.secondaryText)
+                    Text("Finish setting up").font(Theme.uiBold(18)).foregroundStyle(.white)
+                    Text("Location, player and audio").font(Theme.ui(14))
+                        .foregroundStyle(Theme.secondaryText)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").foregroundStyle(Theme.accent)
+            }
+            .tile(selected: true)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func linkTile<Destination: View>(_ title: String, _ note: String,
+                                             @ViewBuilder to destination: @escaping () -> Destination) -> some View {
+        NavigationLink(destination: destination) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    LCDLabel(text: title, size: 18, color: Theme.accent)
+                    Text(note).font(Theme.ui(13)).foregroundStyle(Theme.secondaryText)
                 }
                 Spacer()
                 Image(systemName: "chevron.right").foregroundStyle(Theme.inactive)
@@ -255,88 +201,71 @@ private struct PigeonClockSettingsPage: View {
         .buttonStyle(.plain)
     }
 
-    private var sports: some View {
-        NavigationLink { SportsView(client: client) } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    LCDLabel(text: "Sports", size: 18, color: Theme.accent)
-                    Text("Scores, followed teams and today's games")
-                        .font(Theme.ui(13)).foregroundStyle(Theme.secondaryText)
-                }
-                Spacer()
-                Image(systemName: "chevron.right").foregroundStyle(Theme.inactive)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading).tile()
-        }
-        .buttonStyle(.plain)
-    }
+    // MARK: Display and Theme: brightness, then the theme color (which this app wears too)
 
-    // MARK: Display: brightness, now playing layout, playback bar
-
-    @ViewBuilder private var display: some View {
+    @ViewBuilder private var displayAndTheme: some View {
         if caps.contains("display_brightness") {
             BrightnessControl(client: client).id(reload)
         }
         if hasSettings {
             if let d = settings.data {
-                OptionRow(model: settings, data: d, key: "np_layout", title: "Now playing layout",
-                          labels: ["zone11": "Zone 11", "zone63": "Zone 6,3"],
-                          note: d.options["np_layout"] == "zone63"
-                              ? "Wide title, with the volume beside it."
-                              : "Large title across the top, with the running time below it.")
-                OptionRow(model: settings, data: d, key: "zone4_mode", title: "Playback bar",
-                          labels: ["info": "Info", "visualizer": "Visualizer"])
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Color").font(Theme.ui(13)).foregroundStyle(Theme.secondaryText)
+                    ColorSwatches(model: settings, data: d)
+                }
             } else {
                 placeholder
             }
         }
     }
 
-    // MARK: Theme: interface color and standard / simple
-
-    @ViewBuilder private var theme: some View {
-        if let d = settings.data {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Color").font(Theme.ui(13)).foregroundStyle(Theme.secondaryText)
-                ColorSwatches(model: settings, data: d)
-            }
-            OptionRow(model: settings, data: d, key: "ui_style", title: "Settings look",
-                      labels: ["standard": "Standard", "simple": "Simple"],
-                      note: d.options["ui_style"] == "simple"
-                          ? "Settings are drawn in just the theme color and black."
-                          : "Settings are drawn over the full themed background.")
-        } else {
-            placeholder
-        }
-    }
-
-    // MARK: Clock: 12 / 24 hour, face, °F / °C, zip and timezone
-
-    @ViewBuilder private var clock: some View {
-        if let d = settings.data {
-            OptionRow(model: settings, data: d, key: "time_format", title: "Hours",
-                      labels: ["12": "12 hr", "24": "24 hr"])
-            OptionRow(model: settings, data: d, key: "clock_format", title: "Clock face",
-                      labels: ["digital": "Digital", "analog": "Analog"])
-            OptionRow(model: settings, data: d, key: "temp_format", title: "Temperature",
-                      labels: ["f": "°F", "c": "°C"])
-            LocationFields(model: settings, data: d)
-        } else {
-            placeholder
-        }
-    }
-
-    // MARK: System: status, update / factory reset / restart
+    // MARK: System: name, rooms, history, status, update / factory reset / restart, remove
 
     @ViewBuilder private var system: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Name").font(Theme.ui(13)).foregroundStyle(Theme.secondaryText)
+            TextField("Name", text: $name)
+                .font(Theme.uiBold(18))
+                .submitLabel(.done)
+                .onSubmit { Task { await rename() } }
+                .padding(10)
+                .background(Theme.tileRaised, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        if caps.contains("rooms") {
+            Divider().overlay(Theme.inactive)
+            RoomsCard(client: client, canReset: caps.contains("room_reset"), embedded: true).id(reload)
+        }
+        Divider().overlay(Theme.inactive)
+        if caps.contains("history") {
+            NavigationLink { HistoryView(client: client) } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Now Playing History").font(Theme.uiBold(16)).foregroundStyle(.white)
+                        Text("What this Pigeon has shown. Remove anything you don't want kept.")
+                            .font(Theme.ui(12)).foregroundStyle(Theme.secondaryText)
+                            .multilineTextAlignment(.leading)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(Theme.inactive)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            Divider().overlay(Theme.inactive)
+        }
         VStack(alignment: .leading, spacing: 8) {
-            row("State", status?.state.capitalized ?? "—")
             row("Now playing", status?.nowPlaying?.title ?? "Nothing")
             row("Version", settings.data?.version ?? info?.version ?? "—")
             row("Address", "\(device.host):\(device.port)")
         }
         if caps.contains("restart") || caps.contains("update") || caps.contains("factory_reset") {
             MaintenanceControls(client: client, caps: caps) { reload += 1 }
+        }
+        Button(role: .destructive) { confirmRemove = true } label: {
+            Text("Remove from this device").font(Theme.uiBold(16))
+                .frame(maxWidth: .infinity).padding(.vertical, 12)
+                .foregroundStyle(Theme.bad)
+                .background(Theme.tileRaised, in: Capsule())
         }
     }
 
@@ -352,6 +281,67 @@ private struct PigeonClockSettingsPage: View {
             Spacer()
             Text(v).font(Theme.uiBold(15)).foregroundStyle(.white).multilineTextAlignment(.trailing)
         }
+    }
+
+    private func load() async {
+        do {
+            async let i = client.device()
+            async let k = client.capabilities()
+            async let s = client.status()
+            (info, capabilities, status) = try await (i, k, s)
+            name = info?.name ?? device.name
+            errorText = nil
+        } catch { errorText = error.localizedDescription }
+        if hasSettings { await settings.load() }
+        if caps.contains("setup"), let s = try? await client.setup() {
+            setupPending = !s.isDone
+        }
+    }
+
+    private func rename() async {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, trimmed != device.name else { return }
+        do {
+            let updated: DeviceInfo = try await client.send("PATCH", "/device", body: ["name": trimmed])
+            store.rename(id: device.id, to: updated.name)
+            errorText = nil
+        } catch { errorText = error.localizedDescription }
+    }
+}
+
+/// The clock: 12 / 24 hour, face, °F / °C, zip code and time zone.
+struct ClockSettingsView: View {
+    @ObservedObject var model: PigeonSettingsModel
+
+    var body: some View {
+        ZStack {
+            Theme.canvas.ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    if let d = model.data {
+                        VStack(alignment: .leading, spacing: 14) {
+                            OptionRow(model: model, data: d, key: "time_format", title: "Hours",
+                                      labels: ["12": "12 hr", "24": "24 hr"])
+                            OptionRow(model: model, data: d, key: "clock_format", title: "Clock face",
+                                      labels: ["digital": "Digital", "analog": "Analog"])
+                            OptionRow(model: model, data: d, key: "temp_format", title: "Temperature",
+                                      labels: ["f": "°F", "c": "°C"])
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading).tile()
+                        LocationFields(model: model, data: d)
+                            .frame(maxWidth: .infinity, alignment: .leading).tile()
+                    } else if model.errorText == nil {
+                        ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
+                    }
+                    if let e = model.errorText { Text(e).font(Theme.ui(13)).foregroundStyle(Theme.bad) }
+                }
+                .padding(Theme.gutter)
+            }
+        }
+        .navigationTitle("Clock Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { if model.busy { ToolbarItem(placement: .topBarTrailing) { ProgressView() } } }
+        .task { if model.data == nil { await model.load() } }
     }
 }
 
@@ -384,7 +374,7 @@ private struct CollapsibleTile<Content: View>: View {
     }
 }
 
-/// The device page's way into its settings, drawn as Pigeon's digital clock:
+/// The device page's way into the clock's settings, drawn as Pigeon's digital clock:
 /// date, HH:MM:SS and the 60 second boxes that fill as the minute goes by.
 struct PigeonClockSettingsButton: View {
     /// Supplies the device's 12 / 24 hour choice and time zone; the phone's are used until it loads.
@@ -399,7 +389,7 @@ struct PigeonClockSettingsButton: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                LCDLabel(text: "Pigeon Clock Settings", size: 18, color: Theme.accent)
+                LCDLabel(text: "Clock Settings", size: 18, color: Theme.accent)
                 Spacer()
                 Image(systemName: "chevron.right").foregroundStyle(Theme.inactive)
             }
@@ -419,7 +409,7 @@ struct PigeonClockSettingsButton: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .tile()
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Pigeon Clock Settings")
+        .accessibilityLabel("Clock Settings")
     }
 
     private static func format(_ date: Date, _ pattern: String, _ tz: TimeZone) -> String {
@@ -507,13 +497,46 @@ struct RoomsCard: View {
     @State private var newName = ""
     /// The device can empty a single room (trash icon).
     let canReset: Bool
+    /// Inside another tile (the System section): no tile of its own.
+    let embedded: Bool
 
-    init(client: PigeonClient, canReset: Bool = false) {
+    init(client: PigeonClient, canReset: Bool = false, embedded: Bool = false) {
         _model = StateObject(wrappedValue: RoomsModel(client: client))
         self.canReset = canReset
+        self.embedded = embedded
     }
 
     var body: some View {
+        Group {
+            if embedded { rooms } else { rooms.tile() }
+        }
+        .task { await model.load() }
+        .alert("Rename room", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+            TextField("ROOM NAME", text: $newName)
+                .textInputAutocapitalization(.characters)
+                .onChange(of: newName) { _, v in if v != v.uppercased() { newName = v.uppercased() } }
+            Button("Save") { if let r = renaming { Task { await model.rename(r, to: newName) } } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            if let p = model.data?.presets, !p.isEmpty { Text("e.g. " + p.prefix(4).joined(separator: ", ")) }
+        }
+        .alert("Switch to \(switching?.name.uppercased() ?? "room")?",
+               isPresented: Binding(get: { switching != nil }, set: { if !$0 { switching = nil } })) {
+            Button("Switch") { if let r = switching { Task { await model.choose(r) } } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Pigeon will use this room's player and audio receiver instead.")
+        }
+        .alert("Reset \(resetting?.name.uppercased() ?? "room")?",
+               isPresented: Binding(get: { resetting != nil }, set: { if !$0 { resetting = nil } })) {
+            Button("Reset", role: .destructive) { if let r = resetting { Task { await model.reset(r) } } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Unpairs this room's player and audio receiver and puts its name back to ROOM \(resetting?.slot ?? 1). Other rooms aren't changed.")
+        }
+    }
+
+    private var rooms: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 LCDLabel(text: "Room", size: 18, color: Theme.accent)
@@ -563,31 +586,6 @@ struct RoomsCard: View {
             if let e = model.errorText { Text(e).font(Theme.ui(13)).foregroundStyle(Theme.bad) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tile()
-        .task { await model.load() }
-        .alert("Rename room", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
-            TextField("ROOM NAME", text: $newName)
-                .textInputAutocapitalization(.characters)
-                .onChange(of: newName) { _, v in if v != v.uppercased() { newName = v.uppercased() } }
-            Button("Save") { if let r = renaming { Task { await model.rename(r, to: newName) } } }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            if let p = model.data?.presets, !p.isEmpty { Text("e.g. " + p.prefix(4).joined(separator: ", ")) }
-        }
-        .alert("Switch to \(switching?.name.uppercased() ?? "room")?",
-               isPresented: Binding(get: { switching != nil }, set: { if !$0 { switching = nil } })) {
-            Button("Switch") { if let r = switching { Task { await model.choose(r) } } }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Pigeon will use this room's player and audio receiver instead.")
-        }
-        .alert("Reset \(resetting?.name.uppercased() ?? "room")?",
-               isPresented: Binding(get: { resetting != nil }, set: { if !$0 { resetting = nil } })) {
-            Button("Reset", role: .destructive) { if let r = resetting { Task { await model.reset(r) } } }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Unpairs this room's player and audio receiver and puts its name back to ROOM \(resetting?.slot ?? 1). Other rooms aren't changed.")
-        }
     }
 }
 
@@ -770,7 +768,7 @@ final class PigeonSettingsModel: ObservableObject {
 }
 
 /// One of the device's two-way switches. Hidden when the device doesn't offer the option.
-private struct OptionRow: View {
+struct OptionRow: View {
     @ObservedObject var model: PigeonSettingsModel
     let data: PigeonSettings
     let key: String
@@ -794,35 +792,48 @@ private struct OptionRow: View {
     }
 }
 
+/// The theme colors as large tiles (three across). Picking one themes the Pigeon and this app.
 private struct ColorSwatches: View {
     @ObservedObject var model: PigeonSettingsModel
     let data: PigeonSettings
 
-    static let swatches: [String: Color] = [
-        "blue": Color(hex: 0x4EA6F7), "green": Color(hex: 0x00A32E), "yellow": Color(hex: 0xE6FF0A),
-        "pink": Color(hex: 0xFF5CA8), "red": Color(hex: 0xFF0000),
-        "orange": Color(hex: 0xE39F00), "grey": Color(hex: 0x777777), "white": .white,
-    ]
+    /// White took the place of the Standard / Simple switch; firmware from before that
+    /// doesn't list it but does accept it.
+    private var choices: [String] {
+        data.uiColorChoices.contains("white") ? data.uiColorChoices : data.uiColorChoices + ["white"]
+    }
 
     var body: some View {
-        HStack(spacing: 14) {
-            ForEach(data.uiColorChoices, id: \.self) { key in
-                let selected = data.uiColor == key && data.options["color_format"] != "dark"
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
+            ForEach(choices, id: \.self) { key in
+                let selected = ThemeStore.key(for: data) == key
                 Button { Task { await model.setColor(key) } } label: {
-                    Circle().fill(Self.swatches[key] ?? .gray)
-                        .frame(width: 38, height: 38)
-                        .overlay(Circle().stroke(Color.white, lineWidth: selected ? 3 : 0).padding(-4))
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(ThemeStore.color(for: key))
+                        .frame(height: 68)
+                        .overlay {
+                            if selected {
+                                Image(systemName: "checkmark").font(.system(size: 22, weight: .bold))
+                                    .foregroundStyle(.black)
+                            }
+                        }
+                        .padding(5)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(selected ? Color.white : .clear, lineWidth: 3)
+                        )
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(key.capitalized)
                 .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
     }
 }
 
-private struct LocationFields: View {
+struct LocationFields: View {
     @ObservedObject var model: PigeonSettingsModel
     let data: PigeonSettings
 

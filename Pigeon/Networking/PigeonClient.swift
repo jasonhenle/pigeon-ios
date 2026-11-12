@@ -130,6 +130,14 @@ struct PigeonClient {
         try await perform(try makeRequest(method, path))
     }
 
+    /// The raw bytes at an API path (an image).
+    func data(_ path: String) async throws -> Data {
+        try await perform(try makeRequest("GET", path))
+    }
+
+    /// Identifies this device's copy of a path, for caches (the same path means different art on another Pigeon).
+    func cacheKey(_ path: String) -> String { "\(host):\(pin?.port ?? port)\(path)" }
+
     // MARK: Endpoints
 
     func hello() async throws -> Hello { try await send("GET", "/hello") }
@@ -220,6 +228,21 @@ struct PigeonClient {
 
     func refreshTmdb() async throws -> NowPlayingDetail {
         try await send("POST", "/now-playing/refresh")
+    }
+
+    // MARK: Now playing history
+
+    func history() async throws -> [HistoryEntry] {
+        let r: HistoryResponse = try await send("GET", "/history")
+        return r.entries
+    }
+
+    /// Removes one entry from the Pigeon. The Pigeon also clears the title from its usage data
+    /// and has Pigeon Report purge it.
+    func deleteHistory(_ id: String) async throws { try await sendNoContent("DELETE", "/history/\(id)") }
+
+    func clearHistory() async throws {
+        let _: HistoryResponse = try await send("DELETE", "/history")
     }
 
     // MARK: Maintenance

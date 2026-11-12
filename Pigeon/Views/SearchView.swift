@@ -68,10 +68,14 @@ struct PlayingNowSection: View {
             if let np = detected {
                 NavigationLink {
                     NowPlayingFixView(client: store.client(for: device), deviceName: device.name)
-                } label: { DetectedCard(nowPlaying: np) }
+                } label: { DetectedCard(nowPlaying: np, client: store.client(for: device)) }
                     .buttonStyle(.plain)
             }
             if let e = manual {
+                // The pinned title's picture, when the Pigeon is showing it.
+                if let np = model.nowPlaying, np.source == "manual", !np.artwork.isEmpty {
+                    NowPlayingArtView(nowPlaying: np, client: store.client(for: device))
+                }
                 PinnedTitleRow(entry: e) { Task { await model.clear() } }
             }
             if detected == nil && manual == nil {
@@ -160,19 +164,28 @@ struct PinnedTitleRow: View {
     }
 }
 
+/// What Pigeon is showing, as it shows it (the logo over the backdrop, or the song over its
+/// album art), and the way in to fixing a wrong match.
 struct DetectedCard: View {
     let nowPlaying: NowPlaying
+    var client: PigeonClient?
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(nowPlaying.title ?? "Unknown title").font(Theme.uiBold(20)).foregroundStyle(.white)
-                    .multilineTextAlignment(.leading)
-                Text("Wrong title? Tap to see what Pigeon heard and fix it.")
-                    .font(Theme.ui(14)).foregroundStyle(Theme.secondaryText)
-                    .multilineTextAlignment(.leading)
+        VStack(alignment: .leading, spacing: 10) {
+            NowPlayingArtView(nowPlaying: nowPlaying, client: client)
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    // A track's name is already written on its album art.
+                    if !nowPlaying.isMusic {
+                        Text(nowPlaying.title ?? "Unknown title").font(Theme.uiBold(18)).foregroundStyle(.white)
+                            .multilineTextAlignment(.leading)
+                    }
+                    Text("Wrong title? Tap to see what Pigeon heard and fix it.")
+                        .font(Theme.ui(14)).foregroundStyle(Theme.secondaryText)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").foregroundStyle(Theme.inactive)
             }
-            Spacer()
-            Image(systemName: "chevron.right").foregroundStyle(Theme.inactive)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .tile()

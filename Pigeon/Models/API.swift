@@ -78,10 +78,86 @@ struct ManualSearchState: Codable, Equatable {
 
 struct NowPlaying: Codable, Equatable {
     var title: String?
+    /// "movie", "tv", "music" or "video".
     var kind: String?
     var tmdbId: Int?
     var source: String?
     var app: String?
+    var year: String?
+    var artist: String?
+    var album: String?
+    /// TMDb artwork for a title: the backdrop, the title-treatment logo and the poster.
+    var backdropUrl: String?
+    var logoUrl: String?
+    var posterUrl: String?
+    /// Pigeon draws this logo in white (a dark logo on a dark backdrop).
+    var logoWhite: Bool?
+    /// Album art, as a path on the device (`/history/{id}/artwork`); needs the device's token.
+    var artworkUrl: String?
+
+    var isMusic: Bool { kind == "music" }
+    var artwork: Artwork {
+        Artwork(backdropUrl: backdropUrl, logoUrl: logoUrl, posterUrl: posterUrl,
+                logoWhite: logoWhite ?? false, artworkPath: artworkUrl)
+    }
+    /// "Taylor Swift — Lover" for a track.
+    var musicSubtitle: String {
+        [artist, album].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " — ")
+    }
+}
+
+/// The pictures that go with something Pigeon played.
+struct Artwork: Equatable {
+    var backdropUrl: String?
+    var logoUrl: String?
+    var posterUrl: String?
+    var logoWhite = false
+    var artworkPath: String?
+
+    var isEmpty: Bool { backdropUrl == nil && logoUrl == nil && posterUrl == nil && artworkPath == nil }
+}
+
+// MARK: Now playing history
+
+/// One title or track the Pigeon has shown (`GET /history`), newest first.
+struct HistoryEntry: Codable, Equatable, Identifiable {
+    var id: String
+    var kind: String
+    var title: String
+    var year: String?
+    var tmdbId: Int?
+    var service: String?
+    var artist: String?
+    var album: String?
+    /// Unix seconds.
+    var firstPlayed: Double?
+    var lastPlayed: Double?
+    var plays: Int
+    var backdropUrl: String?
+    var logoUrl: String?
+    var posterUrl: String?
+    var logoWhite: Bool?
+    var artworkUrl: String?
+
+    var isMusic: Bool { kind == "music" }
+    var artwork: Artwork {
+        Artwork(backdropUrl: backdropUrl, logoUrl: logoUrl, posterUrl: posterUrl,
+                logoWhite: logoWhite ?? false, artworkPath: artworkUrl)
+    }
+    var lastPlayedDate: Date? { lastPlayed.map(Date.init(timeIntervalSince1970:)) }
+
+    /// "TV · 2009 · Peacock", or "Taylor Swift — Lover" for a track.
+    var subtitle: String {
+        if isMusic {
+            return [artist, album].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " — ")
+        }
+        let k = kind == "tv" ? "TV" : (kind == "movie" ? "Movie" : "")
+        return [k, year, service].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+}
+
+struct HistoryResponse: Codable, Equatable {
+    var entries: [HistoryEntry]
 }
 
 struct DeviceStatus: Codable, Equatable {
@@ -235,6 +311,15 @@ struct PigeonSettings: Codable, Equatable {
     var optionValues: [String: [String]]
     var uiColor: String?
     var uiColorChoices: [String]
+}
+
+/// The device renamed three of its visualizers when now playing history arrived; older firmware
+/// still sends the old ones.
+enum VisualizerNames {
+    private static let renamed = [
+        "Sweep VU": "Analog VU", "Stereo Bars": "Sound Bars", "Faux 3.1 Speakers": "Circles",
+    ]
+    static func display(_ name: String) -> String { renamed[name] ?? name }
 }
 
 struct PigeonSettingsPatch: Codable {

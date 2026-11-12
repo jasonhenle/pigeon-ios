@@ -14,7 +14,6 @@ struct PigeonApp: App {
                 .environmentObject(setup)
                 .onOpenURL { setup.open($0) }  // pigeon://setup#… from a Pigeon's Welcome screen
                 .preferredColorScheme(.dark)
-                .tint(Theme.accent)
                 .onAppear { browser.start() }
         }
     }

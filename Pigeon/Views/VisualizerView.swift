@@ -38,9 +38,9 @@ struct VisualizerView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     if let d = model.data {
                         lock(d)
-                        VStack(alignment: .leading, spacing: 8) {
-                            LCDLabel(text: "Showing", size: 18, color: Theme.accent)
-                            ForEach(d.presets) { row($0, active: $0.index == d.active) }
+                        LCDLabel(text: "Showing", size: 18, color: Theme.accent)
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
+                            ForEach(d.presets) { card($0, active: $0.index == d.active) }
                         }
                     } else if model.errorText == nil {
                         ProgressView().frame(maxWidth: .infinity)
@@ -74,20 +74,28 @@ struct VisualizerView: View {
         .tile()
     }
 
-    private func row(_ preset: VisualizerPreset, active: Bool) -> some View {
+    /// A visualizer: its preview playing in the theme color, its name, and whether it is the one showing.
+    private func card(_ preset: VisualizerPreset, active: Bool) -> some View {
         Button { Task { await model.select(preset) } } label: {
-            HStack {
-                Text(preset.name).font(Theme.uiBold(16)).foregroundStyle(.white)
-                Spacer()
-                Image(systemName: active ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22))
-                    .foregroundStyle(active ? Theme.accent : Theme.inactive)
+            VStack(alignment: .leading, spacing: 10) {
+                if VisualizerPreviews.hasPreview(style: preset.style) {
+                    VisualizerPreview(style: preset.style)
+                }
+                HStack {
+                    Text(VisualizerNames.display(preset.name)).font(Theme.uiBold(16)).foregroundStyle(.white)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                    Spacer()
+                    Image(systemName: active ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 22))
+                        .foregroundStyle(active ? Theme.accent : Theme.inactive)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .tile(selected: active)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(VisualizerNames.display(preset.name))
         .accessibilityAddTraits(active ? .isSelected : [])
     }
 }
