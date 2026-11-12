@@ -11,7 +11,7 @@ enum PigeonError: LocalizedError, Equatable {
         switch self {
         case .unauthorized: return "This Pigeon no longer recognizes this device. Add it again."
         case .api(_, _, let message): return message
-        case .transport(let m): return "Can't reach the device. \(m)"
+        case .transport: return "Can't reach this Pigeon. Pigeon Remote works when your phone is on the same Wi-Fi as the Pigeon."
         case .decoding(let m): return "Unexpected reply from the device. \(m)"
         }
     }
@@ -69,6 +69,9 @@ struct PigeonClient {
     var token: String?
     var session: URLSession = .shared
     var pin: TLSPin?
+    /// Set for a paired Pigeon: its reads are kept (`ResponseCache`) and shown while it is out of
+    /// reach, and every request reports to `Connectivity`.
+    var deviceID: String?
 
     /// The session to use: the caller's, unless it is the shared default and a pin requires a pinned one.
     private var activeSession: URLSession {
@@ -107,11 +110,65 @@ struct PigeonClient {
 
     @discardableResult
     private func perform(_ req: URLRequest) async throws -> Data {
-        let data: Data, resp: URLResponse
-        do { (data, resp) = try await activeSession.data(for: req) }
-        catch { throw PigeonError.transport(error.localizedDescription) }
+        var req = req
+        let path = String((req.url?.path ?? "").dropFirst("/api/v1".count))
+        let key = path + (req.url?.query.map { "?" + $0 } ?? "")
+        let isGet = req.httpMethod == "GET"
+        let cacheable = isGet && deviceID != nil && ResponseCache.isCacheable(path)
+        var known = true
+        if let id = deviceID {
+            known = await Connectivity.shared.isReachable(id)
+            // Out of reach: show what the Pigeon last said at once instead of waiting out a timeout.
+            if !known, cacheable, let cached = ResponseCache.read(id, key) { return cached }
+            if !known { req.timeoutInterval = min(req.timeoutInterval, 4) }
+        }
+        var data = Data(), resp = URLResponse()
+        do {
+            // A Pigeon answers 503 when its few connection slots are full (a page loading many things
+            // at once). A read is safe to ask again, so wait a moment and do, rather than show an error.
+            for attempt in 0..<3 {
+                (data, resp) = try await activeSession.data(for: req)
+                // Only the bare refusal (no body); a 503 with an error message, e.g. TMDb down, is an answer.
+                guard isGet, attempt < 2, (resp as? HTTPURLResponse)?.statusCode == 503, data.isEmpty else { break }
+                try await Task.sleep(for: .milliseconds(attempt == 0 ? 700 : 1500))
+            }
+        }
+        catch {
+            // The app gave up on the request itself (a view went away, a stream reconnected):
+            // that says nothing about the Pigeon.
+            if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
+                throw CancellationError()
+            }
+            if let id = deviceID {
+                await Connectivity.shared.note(id, reachable: false)
+                if cacheable, let cached = ResponseCache.read(id, key) { return cached }
+            }
+            throw PigeonError.transport(error.localizedDescription)
+        }
         guard let http = resp as? HTTPURLResponse else { throw PigeonError.transport("No response") }
-        if (200..<300).contains(http.statusCode) { return data }
+        // Any answer means it's in reach, except "who are you?": that is a reset Pigeon, or another
+        // device that now has its address, and either way not one this phone can use.
+        if let id = deviceID {
+            if http.statusCode == 401 { await Connectivity.shared.note(id, reachable: false) }
+            else if !known { await Connectivity.shared.note(id, reachable: true) }
+        }
+        if (200..<300).contains(http.statusCode) {
+            if let id = deviceID {
+                if !isGet {
+                    // A change: what was kept about it is out of date (a removed history entry must not
+                    // come back from the cache). A reply that is the resource itself is kept in its place.
+                    ResponseCache.invalidate(id, root: ResponseCache.rootSegment(path))
+                }
+                // PATCH /pigeon-settings, /display, /visualizer, /sports and /device reply with the GET body.
+                let patchedWhole = req.httpMethod == "PATCH" && path.split(separator: "/").count == 1
+                    && ResponseCache.isCacheable(path) && !data.isEmpty
+                if cacheable || patchedWhole {
+                    ResponseCache.write(data, id, key)
+                    ResponseCache.index(id, key)
+                }
+            }
+            return data
+        }
         if http.statusCode == 401 { throw PigeonError.unauthorized }
         if let env = try? Self.decoder.decode(APIErrorEnvelope.self, from: data) {
             throw PigeonError.api(status: http.statusCode, code: env.error.code, message: env.error.message)
@@ -141,6 +198,18 @@ struct PigeonClient {
     // MARK: Endpoints
 
     func hello() async throws -> Hello { try await send("GET", "/hello") }
+
+    /// Is the Pigeon reachable right now? A quick, open request that also updates `Connectivity`.
+    @discardableResult
+    func ping() async -> Bool {
+        guard let hello: Hello = try? await send("GET", "/hello", timeout: 3) else { return false }
+        // Something answering at the address isn't enough: the address may now belong to another Pigeon.
+        if let id = deviceID, hello.id != id {
+            await Connectivity.shared.note(id, reachable: false)
+            return false
+        }
+        return true
+    }
 
     func claim(code: String, controllerName: String, controllerID: String) async throws -> ClaimResponse {
         try await send("POST", "/claim", body: ClaimRequest(

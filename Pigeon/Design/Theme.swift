@@ -23,7 +23,8 @@ final class ThemeStore {
     var onAccent: Color { .black }
 
     @ObservationIgnored private let defaults: UserDefaults
-    @ObservationIgnored private var byDevice: [String: String]
+    /// Each Pigeon's color, as last read from it (the Devices list shows it as a dot).
+    private var byDevice: [String: String]
     @ObservationIgnored private var following: String?
     private enum Keys {
         static let accent = "theme_accent"
@@ -56,7 +57,8 @@ final class ThemeStore {
         if following == deviceID { apply(key) }
     }
 
-    /// Wear this Pigeon's color (the one being looked at). `nil`: no Pigeon, back to blue.
+    /// Wear this Pigeon's color while its pages are open. `nil` (the Devices list, adding a Pigeon):
+    /// belongs to no Pigeon, so back to Pigeon blue.
     func follow(_ deviceID: String?) {
         following = deviceID
         apply(deviceID.flatMap { byDevice[$0] } ?? (deviceID == nil ? Self.defaultKey : accentKey))

@@ -49,7 +49,8 @@ final class DeviceStore: ObservableObject {
     func token(for id: String) -> String? { Keychain.get(id) }
 
     func client(for device: KnownDevice) -> PigeonClient {
-        PigeonClient(host: device.host, port: device.port, token: Keychain.get(device.id), pin: device.pin)
+        PigeonClient(host: device.host, port: device.port, token: Keychain.get(device.id), pin: device.pin,
+                     deviceID: device.id)
     }
 
     func add(_ device: KnownDevice, token: String) {
@@ -91,6 +92,7 @@ final class DeviceStore: ObservableObject {
 
     func remove(id: String) {
         Keychain.delete(id)
+        ResponseCache.remove(id)
         devices.removeAll { $0.id == id }
         if selectedID == id { selectedID = devices.first?.id }
         persist()

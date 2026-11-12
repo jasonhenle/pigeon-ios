@@ -9,8 +9,6 @@ struct RootView: View {
         DevicesView()
             .background(Theme.canvas)
             .tint(Theme.accent)
-            .onAppear { ThemeStore.shared.follow(store.selectedID) }
-            .onChange(of: store.selectedID) { _, id in ThemeStore.shared.follow(id) }
             .fullScreenCover(item: $setup.request) { SetupFlowView(request: $0) }
             .onChange(of: browser.devices) { _, found in
                 // Keep known devices reachable when their IP changes.

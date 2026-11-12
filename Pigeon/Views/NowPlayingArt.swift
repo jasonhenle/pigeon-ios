@@ -151,8 +151,16 @@ final class DeviceGlanceModel: ObservableObject {
     func start(_ client: PigeonClient, deviceID: String) {
         task?.cancel()
         task = Task { [weak self] in
+            // Quick reachability check first, so the list (and the page behind it) knows at once.
+            await client.ping()
             if let s = try? await client.pigeonSettings() {
                 ThemeStore.shared.remember(ThemeStore.key(for: s), for: deviceID)
+            }
+            // Keeps what the Pigeon is and can do, so its page is complete even if it is out of reach
+            // the first time it's opened.
+            _ = try? await client.device()
+            if let caps = try? await client.capabilities(), caps.capabilities.contains("rooms") {
+                _ = try? await client.rooms()
             }
             while !Task.isCancelled {
                 let np = (try? await client.status())?.nowPlaying

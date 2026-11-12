@@ -4,6 +4,8 @@ struct DevicesView: View {
     @EnvironmentObject private var store: DeviceStore
     @EnvironmentObject private var browser: DeviceBrowser
     @State private var showAdd = false
+    /// The Pigeon whose pages are open, if any: the app wears its color only there.
+    @State private var path: [KnownDevice] = []
 
     private static var appVersion: String {
         let info = Bundle.main.infoDictionary
@@ -13,7 +15,7 @@ struct DevicesView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ZStack {
                 Theme.canvas.ignoresSafeArea()
                 ScrollView {
@@ -43,11 +45,16 @@ struct DevicesView: View {
             .navigationDestination(for: KnownDevice.self) { DeviceDetailView(device: $0) }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showAdd = true } label: { Image(systemName: "plus") }
+                    // White whatever color any Pigeon wears: adding a Pigeon belongs to none of them.
+                    Button { showAdd = true } label: { Image(systemName: "plus").foregroundStyle(.white) }
+                        .tint(.white)
+                        .accessibilityLabel("Add a Pigeon")
                 }
             }
             .sheet(isPresented: $showAdd) { AddDeviceView() }
         }
+        .onAppear { ThemeStore.shared.follow(path.first?.id) }
+        .onChange(of: path) { _, p in ThemeStore.shared.follow(p.first?.id) }
     }
 }
 
@@ -60,15 +67,32 @@ struct DeviceRow: View {
     let selected: Bool
     @StateObject private var glance = DeviceGlanceModel()
 
+    private var reachable: Bool { Connectivity.shared.isReachable(device.id) }
+    private var colorKey: String? { ThemeStore.shared.key(for: device.id) }
+
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                LCDLabel(text: device.name, size: 26)
-                Text(device.product == "marquee" ? "Pigeon Marquee" : "Pigeon Clock")
-                    .font(Theme.ui(14)).foregroundStyle(Theme.secondaryText)
+                HStack(spacing: 10) {
+                    // The Pigeon's theme color, as a dot: which color it is set to, not a decoration.
+                    if let key = colorKey {
+                        Circle().fill(ThemeStore.color(for: key)).frame(width: 12, height: 12)
+                            .accessibilityLabel("\(key.capitalized) theme")
+                    }
+                    LCDLabel(text: device.name, size: 26)
+                }
+                HStack(spacing: 6) {
+                    Text(device.product == "marquee" ? "Pigeon Marquee" : "Pigeon Clock")
+                    if !reachable {
+                        Text("·")
+                        Image(systemName: "wifi.slash").font(.system(size: 11, weight: .semibold))
+                        Text("Not connected")
+                    }
+                }
+                .font(Theme.ui(14)).foregroundStyle(Theme.secondaryText)
             }
             Spacer(minLength: 0)
-            if let np = glance.nowPlaying, np.title?.isEmpty == false {
+            if reachable, let np = glance.nowPlaying, np.title?.isEmpty == false {
                 NowPlayingArtView(nowPlaying: np, client: client, compact: true)
                     .frame(width: 136)
             }
@@ -127,6 +151,7 @@ private struct DevicePage: View {
             Theme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    if !reachable { offlineBanner }
                     if setupPending { finishSetup }
                     if hasSettings {
                         NavigationLink { ClockSettingsView(model: settings) } label: {
@@ -154,6 +179,14 @@ private struct DevicePage: View {
         }
         .toolbar { if settings.busy { ToolbarItem(placement: .topBarTrailing) { ProgressView() } } }
         .task(id: reload) { await load() }
+        // Back in reach: read everything again. While out of reach, check every few seconds.
+        .onChange(of: reachable) { _, now in if now { reload += 1 } }
+        .task(id: reachable) {
+            while !reachable, !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                await client.ping()
+            }
+        }
         .onChange(of: settings.data) { _, d in
             if let d { ThemeStore.shared.remember(ThemeStore.key(for: d), for: device.id) }
         }
@@ -167,6 +200,27 @@ private struct DevicePage: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: { Text("The Pigeon keeps working. Add it again with its on-screen code.") }
+    }
+
+    private var reachable: Bool { Connectivity.shared.isReachable(device.id) }
+
+    /// Away from the Pigeon's network: the page still shows what it last knew.
+    private var offlineBanner: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "wifi.slash").font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Theme.secondaryText).padding(.top, 2)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Not connected").font(Theme.uiBold(17)).foregroundStyle(.white)
+                Text("Pigeon Remote reaches \(device.name) over its Wi-Fi. This is what it showed last; "
+                     + "changes work again once your phone is back on that network.")
+                    .font(Theme.ui(13)).foregroundStyle(Theme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tile()
+        .accessibilityElement(children: .combine)
     }
 
     private var finishSetup: some View {
@@ -253,8 +307,10 @@ private struct DevicePage: View {
             .buttonStyle(.plain)
             Divider().overlay(Theme.inactive)
         }
+        FeedbackButton(device: device, pigeonVersion: settings.data?.version ?? info?.version)
+        Divider().overlay(Theme.inactive)
         VStack(alignment: .leading, spacing: 8) {
-            row("Now playing", status?.nowPlaying?.title ?? "Nothing")
+            row("Now playing", reachable ? (status?.nowPlaying?.title ?? "Nothing") : "Not connected")
             row("Version", settings.data?.version ?? info?.version ?? "—")
             row("Address", "\(device.host):\(device.port)")
         }
@@ -284,15 +340,22 @@ private struct DevicePage: View {
     }
 
     private func load() async {
-        do {
-            async let i = client.device()
-            async let k = client.capabilities()
-            async let s = client.status()
-            (info, capabilities, status) = try await (i, k, s)
-            name = info?.name ?? device.name
-            errorText = nil
-        } catch { errorText = error.localizedDescription }
-        if hasSettings { await settings.load() }
+        // Each on its own: out of reach, the kept answers still fill the page while live ones fail.
+        async let i = try? client.device()
+        async let k = try? client.capabilities()
+        async let s = try? client.status()
+        let (newInfo, newCaps, newStatus) = await (i, k, s)
+        if let newInfo { info = newInfo }
+        if let newCaps { capabilities = newCaps }
+        status = newStatus
+        if name.isEmpty || newInfo != nil { name = info?.name ?? device.name }
+        // Unreachable is said once, by the banner, not again as an error at the foot of the page.
+        errorText = info == nil && capabilities == nil && reachable
+            ? "Couldn't load \(device.name)'s settings. Pull down to try again." : nil
+        if hasSettings {
+            await settings.load()
+            if !reachable { settings.errorText = nil }
+        }
         if caps.contains("setup"), let s = try? await client.setup() {
             setupPending = !s.isDone
         }
@@ -499,11 +562,15 @@ struct RoomsCard: View {
     let canReset: Bool
     /// Inside another tile (the System section): no tile of its own.
     let embedded: Bool
+    private let deviceID: String?
+
+    private var reachable: Bool { deviceID.map(Connectivity.shared.isReachable) ?? true }
 
     init(client: PigeonClient, canReset: Bool = false, embedded: Bool = false) {
         _model = StateObject(wrappedValue: RoomsModel(client: client))
         self.canReset = canReset
         self.embedded = embedded
+        deviceID = client.deviceID
     }
 
     var body: some View {
@@ -583,7 +650,15 @@ struct RoomsCard: View {
                 .padding(.vertical, 6)
             }
             if let n = model.notice { Text(n).font(Theme.ui(13)).foregroundStyle(Theme.ok) }
-            if let e = model.errorText { Text(e).font(Theme.ui(13)).foregroundStyle(Theme.bad) }
+            if !reachable {
+                // The page's banner already says why; nothing here is an error.
+                if model.data == nil {
+                    Text("Rooms show here once your phone is back on this Pigeon's Wi-Fi.")
+                        .font(Theme.ui(13)).foregroundStyle(Theme.secondaryText)
+                }
+            } else if let e = model.errorText {
+                Text(e).font(Theme.ui(13)).foregroundStyle(Theme.bad)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

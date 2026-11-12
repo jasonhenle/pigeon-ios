@@ -12,10 +12,12 @@
 		13C821A843087376557424BC /* VisualizerPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77E2740B58302EDC20F72920 /* VisualizerPreview.swift */; };
 		229BA0AFD578E9B12CAC7796 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C65045E40B6726CB54509F0 /* Keychain.swift */; };
 		31E66E040635671A8175C92B /* API.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3884DEDC3F80F5BE1B7B5B4 /* API.swift */; };
+		346F6336557016AA79A6FE34 /* OfflineAndFeedbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05992A0A6427DB59F17194A5 /* OfflineAndFeedbackTests.swift */; };
 		348DD35B94B7FFCE61A51B0D /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = A7C01AA68AE4B49AB9463DE1 /* AppIcon.icon */; };
 		392065FEC31AED571E3477D3 /* DeviceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E78CAFD971EFA4D21AD41FC /* DeviceStore.swift */; };
 		3D570AC8514A419B79EF5169 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7A77ACCD83710B7EF97D506A /* Assets.xcassets */; };
 		5BF96AD4AF54CA4295A7FD48 /* viz_dots.png in Resources */ = {isa = PBXBuildFile; fileRef = FAADB577C64EEA85B39818FF /* viz_dots.png */; };
+		613C5702146C036A5F3C80A9 /* Connectivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DDC90144F004F1E34428882 /* Connectivity.swift */; };
 		64EB8E2E0D8C956ACC7DCCDB /* SharpSansMedium.otf in Resources */ = {isa = PBXBuildFile; fileRef = 27E071529EB338C9A3462FF9 /* SharpSansMedium.otf */; };
 		71F0D0E4A0493104BCCD3490 /* AddDeviceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40F938D02692D7D45891F5A1 /* AddDeviceView.swift */; };
 		74963C39A92548C72AB0B04D /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 369FA9FE65D8FA561194A382 /* HistoryView.swift */; };
@@ -34,6 +36,7 @@
 		BEC1783752922461FE24BE8A /* SportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97C8B7D63F9A818EDBB0E7E8 /* SportsView.swift */; };
 		C040D357276C00AE846E9AB7 /* SetupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F346992B1A07FBEDC735386 /* SetupTests.swift */; };
 		C8016C38A0382B261BCBE222 /* SetupFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE02FA4435C9A5E6EC3DB57E /* SetupFlowView.swift */; };
+		D1A19699BDD38496E382E2F4 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 334DA9919C813F4187602246 /* FeedbackView.swift */; };
 		D31D243110E497C175787245 /* DevicesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63ECFBD1CCB8CB5A1B062300 /* DevicesView.swift */; };
 		D45C89CC4C6B55C1F424BB92 /* VisualizerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 417BC2EAA7CAADD62359ABFB /* VisualizerView.swift */; };
 		DBB05F56D8050FFF4ED59A7E /* viz_arc_vu.png in Resources */ = {isa = PBXBuildFile; fileRef = 9EA8A9025257D64FA3BE5CD6 /* viz_arc_vu.png */; };
@@ -52,14 +55,17 @@
 
 /* Begin PBXFileReference section */
 		03C1744ECA1BF8B623A51E9A /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		05992A0A6427DB59F17194A5 /* OfflineAndFeedbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineAndFeedbackTests.swift; sourceTree = "<group>"; };
 		120988CC68C601A7C2F78ED8 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		17D4CDF184E76B8AF8457FB3 /* PigeonClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PigeonClient.swift; sourceTree = "<group>"; };
 		1E78CAFD971EFA4D21AD41FC /* DeviceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceStore.swift; sourceTree = "<group>"; };
 		27E071529EB338C9A3462FF9 /* SharpSansMedium.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = SharpSansMedium.otf; sourceTree = "<group>"; };
 		2F346992B1A07FBEDC735386 /* SetupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupTests.swift; sourceTree = "<group>"; };
+		334DA9919C813F4187602246 /* FeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
 		3372496F28E40E0542291FD1 /* PigeonTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = PigeonTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		369FA9FE65D8FA561194A382 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		3762431839A00E0481DC1636 /* PigeonApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PigeonApp.swift; sourceTree = "<group>"; };
+		3DDC90144F004F1E34428882 /* Connectivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Connectivity.swift; sourceTree = "<group>"; };
 		40F938D02692D7D45891F5A1 /* AddDeviceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddDeviceView.swift; sourceTree = "<group>"; };
 		417BC2EAA7CAADD62359ABFB /* VisualizerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualizerView.swift; sourceTree = "<group>"; };
 		42D357C93B72DD143598DA8B /* HistoryAndThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryAndThemeTests.swift; sourceTree = "<group>"; };
@@ -101,6 +107,7 @@
 			children = (
 				40F938D02692D7D45891F5A1 /* AddDeviceView.swift */,
 				63ECFBD1CCB8CB5A1B062300 /* DevicesView.swift */,
+				334DA9919C813F4187602246 /* FeedbackView.swift */,
 				369FA9FE65D8FA561194A382 /* HistoryView.swift */,
 				EE891CB6183A7CFAB937A97F /* NowPlayingArt.swift */,
 				03C1744ECA1BF8B623A51E9A /* RootView.swift */,
@@ -146,6 +153,7 @@
 			children = (
 				A5D705F3F3E9ED241835C65C /* ClientTests.swift */,
 				42D357C93B72DD143598DA8B /* HistoryAndThemeTests.swift */,
+				05992A0A6427DB59F17194A5 /* OfflineAndFeedbackTests.swift */,
 				2F346992B1A07FBEDC735386 /* SetupTests.swift */,
 			);
 			path = PigeonTests;
@@ -166,6 +174,7 @@
 		A58AD224334DB54D477546D1 /* Networking */ = {
 			isa = PBXGroup;
 			children = (
+				3DDC90144F004F1E34428882 /* Connectivity.swift */,
 				A7B9CFC40C338AD19039EAFF /* DeviceBrowser.swift */,
 				17D4CDF184E76B8AF8457FB3 /* PigeonClient.swift */,
 			);
@@ -313,9 +322,11 @@
 			files = (
 				31E66E040635671A8175C92B /* API.swift in Sources */,
 				71F0D0E4A0493104BCCD3490 /* AddDeviceView.swift in Sources */,
+				613C5702146C036A5F3C80A9 /* Connectivity.swift in Sources */,
 				A1303CFD64AF17CF0F6000B9 /* DeviceBrowser.swift in Sources */,
 				392065FEC31AED571E3477D3 /* DeviceStore.swift in Sources */,
 				D31D243110E497C175787245 /* DevicesView.swift in Sources */,
+				D1A19699BDD38496E382E2F4 /* FeedbackView.swift in Sources */,
 				74963C39A92548C72AB0B04D /* HistoryView.swift in Sources */,
 				229BA0AFD578E9B12CAC7796 /* Keychain.swift in Sources */,
 				7A34D975FAAE52DF5F0D849C /* NowPlayingArt.swift in Sources */,
@@ -338,6 +349,7 @@
 			files = (
 				79B60FD664F648BC7EF677BB /* ClientTests.swift in Sources */,
 				B4338EC714F34F7680AED4E2 /* HistoryAndThemeTests.swift in Sources */,
+				346F6336557016AA79A6FE34 /* OfflineAndFeedbackTests.swift in Sources */,
 				C040D357276C00AE846E9AB7 /* SetupTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -422,7 +434,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -435,7 +447,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.1.17;
+				MARKETING_VERSION = 0.1.18;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -498,7 +510,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -517,7 +529,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.1.17;
+				MARKETING_VERSION = 0.1.18;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

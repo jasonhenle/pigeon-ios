@@ -31,6 +31,8 @@ final class SearchModel: ObservableObject {
                         }
                     }
                 } catch { /* reconnect below */ }
+                // The stream dropped: say whether the Pigeon is still in reach (the page shows it).
+                await client.ping()
                 try? await Task.sleep(for: .seconds(3))
             }
         }
@@ -59,12 +61,14 @@ struct PlayingNowSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let text = model.errorText {
+            if let text = model.errorText, Connectivity.shared.isReachable(device.id) {
                 Text(text).font(Theme.ui(14)).foregroundStyle(Theme.bad)
             }
             LCDLabel(text: "Playing now", size: 18, color: Theme.accent)
-            let detected = model.nowPlaying.flatMap { $0.source == "detected" ? $0 : nil }
-            let manual = model.current.active ? model.current.entry : nil
+            // Out of reach, what was playing is no longer known: show neither it nor a pinned title.
+            let reachable = Connectivity.shared.isReachable(device.id)
+            let detected = reachable ? model.nowPlaying.flatMap { $0.source == "detected" ? $0 : nil } : nil
+            let manual = reachable && model.current.active ? model.current.entry : nil
             if let np = detected {
                 NavigationLink {
                     NowPlayingFixView(client: store.client(for: device), deviceName: device.name)
@@ -78,10 +82,13 @@ struct PlayingNowSection: View {
                 }
                 PinnedTitleRow(entry: e) { Task { await model.clear() } }
             }
-            if detected == nil && manual == nil {
+            if !reachable {
+                Text("You'll see what's playing when your phone is back on \(device.name)'s Wi-Fi.")
+                    .font(Theme.ui(15)).foregroundStyle(Theme.secondaryText)
+            } else if detected == nil && manual == nil {
                 Text("Nothing playing").font(Theme.ui(15)).foregroundStyle(Theme.secondaryText)
             }
-            if detected == nil {
+            if detected == nil && reachable {
                 NavigationLink {
                     NowPlayingFixView(client: store.client(for: device), deviceName: device.name, manual: true)
                 } label: {
@@ -100,6 +107,7 @@ struct PlayingNowSection: View {
         }
         .onAppear { reattach() }
         .onChange(of: device.host) { _, _ in reattach() }
+        .onChange(of: Connectivity.shared.isReachable(device.id)) { _, now in if now { reattach() } }
         .onDisappear { model.detach() }
     }
 

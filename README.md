@@ -18,7 +18,13 @@ face, temperature, zip and time zone), Playing Now with the same artwork, Displa
 and the theme color), Visualizer (each one previewed, playing, in the theme color), Sports via `/sports*`,
 and System (name, rooms, Now Playing History, status, update, factory reset, restart, remove).
 
-The app wears the selected Pigeon's theme color (`ThemeStore`). Removing a title from Now Playing History
+Each Pigeon's pages wear its theme color (`ThemeStore`); the Devices list belongs to no Pigeon, so it
+stays Pigeon blue with a white +, and shows each Pigeon's color as a dot by its name.
+
+Away from a Pigeon's network the app keeps showing it: the last answers to its settings, rooms, history,
+visualizer and sports reads are kept per Pigeon (`ResponseCache`, in Caches), the page says "Not
+connected", and it reloads by itself once the Pigeon answers again (`Connectivity`). What is playing is
+never shown from memory. System › Send Developer Feedback drafts an email to hello@thepigeonlabs.com. Removing a title from Now Playing History
 (`/history`) also purges it from Pigeon Report. The visualizer previews are sprite sheets in
 `Pigeon/Resources/VizPreviews`, drawn by the device's own renderer: rebuild them with
 `pigeonSystem/.venv/bin/python -m pigeon.tools_build_viz_previews` when a visualizer's look changes.
