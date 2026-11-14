@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 import UIKit
 
@@ -7,6 +8,7 @@ struct AddDeviceView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var target: Target?
+    @State private var scanning = false
     @State private var manualAddress = ""
     @State private var manualError: String?
 
@@ -28,7 +30,22 @@ struct AddDeviceView: View {
                 Theme.canvas.ignoresSafeArea()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
-                        LCDLabel(text: "Nearby", size: 18, color: Theme.accent)
+                        Button { scanning = true } label: {
+                            HStack(spacing: 14) {
+                                Image(systemName: "qrcode.viewfinder").font(.system(size: 30, weight: .semibold))
+                                    .foregroundStyle(Theme.accent)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Scan Code").font(Theme.uiBold(18)).foregroundStyle(.white)
+                                    Text("The code on a new Pigeon's Welcome screen sets it up in one step.")
+                                        .font(Theme.ui(14)).foregroundStyle(Theme.secondaryText)
+                                        .multilineTextAlignment(.leading)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right").foregroundStyle(Theme.inactive)
+                            }.tile()
+                        }.buttonStyle(.plain)
+
+                        LCDLabel(text: "Nearby", size: 18, color: Theme.accent).padding(.top, 6)
                         let fresh = browser.devices.filter { d in !store.devices.contains { $0.id == d.id } }
                         if fresh.isEmpty {
                             HStack(spacing: 10) {
@@ -75,6 +92,7 @@ struct AddDeviceView: View {
             .sheet(item: $target) { t in
                 ClaimView(target: t) { dismiss() }
             }
+            .sheet(isPresented: $scanning) { QRScanSheet() }
         }
     }
 
@@ -97,7 +115,7 @@ struct AddDeviceView: View {
             manualError = nil
             target = t
         } catch PigeonError.api(_, "already_claimed", _) {
-            manualError = "\(t.name) already has a controller. Use Invite from the phone it's paired with."
+            manualError = "\(t.name) already has a controller. Use Invite from the device it's paired with."
         } catch {
             manualError = error.localizedDescription
         }
@@ -177,7 +195,7 @@ struct ClaimView: View {
                 let coordinator = setup
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(700))
-                    coordinator.request = .device(id: known.id)
+                    coordinator.present(.device(id: known.id))
                 }
             }
         } catch let PigeonError.api(_, code, message) {
@@ -187,5 +205,151 @@ struct ClaimView: View {
             errorText = error.localizedDescription
             code = ""
         }
+    }
+}
+
+// MARK: Scanning a Pigeon's code in the app
+
+/// Scans the QR code on a Pigeon's Welcome screen with this device's camera and starts setup,
+/// the same as scanning it with the Camera app.
+struct QRScanSheet: View {
+    @EnvironmentObject private var setup: SetupCoordinator
+    @Environment(\.dismiss) private var dismiss
+    @State private var access = AVCaptureDevice.authorizationStatus(for: .video)
+    @State private var notice: String?
+
+    private var hasCamera: Bool { AVCaptureDevice.default(for: .video) != nil }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.black.ignoresSafeArea()
+                if !hasCamera {
+                    message("No camera", "This device can't scan. Use + › Nearby to add the Pigeon, "
+                            + "or scan its code from a phone or tablet.")
+                } else if access == .authorized {
+                    QRScannerView { handle($0) }.ignoresSafeArea()
+                    VStack {
+                        Spacer()
+                        Text(notice ?? "Point the camera at the code on the Pigeon's screen.")
+                            .font(Theme.uiBold(16)).foregroundStyle(.white)
+                            .multilineTextAlignment(.center)
+                            .padding(14)
+                            .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .padding(Theme.gutter)
+                    }
+                } else if access == .notDetermined {
+                    ProgressView()
+                } else {
+                    VStack(spacing: 16) {
+                        message("Camera is off", "Allow Pigeon Remote to use the camera in Settings to scan a Pigeon's code.")
+                        Button("Open Settings") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                        }
+                        .font(Theme.uiBold(16))
+                    }
+                }
+            }
+            .navigationTitle("Scan Code")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+        }
+        .task {
+            if access == .notDetermined {
+                _ = await AVCaptureDevice.requestAccess(for: .video)
+                access = AVCaptureDevice.authorizationStatus(for: .video)
+            }
+        }
+    }
+
+    private func handle(_ code: String) {
+        guard let url = URL(string: code), setup.open(url) else {
+            notice = "That isn't a Pigeon setup code. Scan the code on the Pigeon's Welcome screen."
+            return
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        dismiss()
+    }
+
+    private func message(_ title: String, _ text: String) -> some View {
+        VStack(spacing: 8) {
+            Text(title).font(Theme.uiBold(20)).foregroundStyle(.white)
+            Text(text).font(Theme.ui(15)).foregroundStyle(Theme.secondaryText).multilineTextAlignment(.center)
+        }
+        .padding(Theme.gutter)
+    }
+}
+
+/// Live camera preview that reports each QR code it sees (the same code is reported once).
+struct QRScannerView: UIViewControllerRepresentable {
+    var onCode: (String) -> Void
+
+    func makeUIViewController(context: Context) -> QRScannerController {
+        let c = QRScannerController()
+        c.onCode = onCode
+        return c
+    }
+
+    func updateUIViewController(_ controller: QRScannerController, context: Context) {
+        controller.onCode = onCode
+    }
+}
+
+final class QRScannerController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
+    var onCode: ((String) -> Void)?
+    private let session = AVCaptureSession()
+    private var preview: AVCaptureVideoPreviewLayer?
+    private var lastCode: String?
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        guard let camera = AVCaptureDevice.default(for: .video),
+              let input = try? AVCaptureDeviceInput(device: camera),
+              session.canAddInput(input) else { return }
+        session.addInput(input)
+        let output = AVCaptureMetadataOutput()
+        guard session.canAddOutput(output) else { return }
+        session.addOutput(output)
+        output.setMetadataObjectsDelegate(self, queue: .main)
+        if output.availableMetadataObjectTypes.contains(.qr) { output.metadataObjectTypes = [.qr] }
+        let layer = AVCaptureVideoPreviewLayer(session: session)
+        layer.videoGravity = .resizeAspectFill
+        view.layer.addSublayer(layer)
+        preview = layer
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        preview?.frame = view.bounds
+        if let connection = preview?.connection, let scene = view.window?.windowScene {
+            let angle: CGFloat = switch scene.interfaceOrientation {
+            case .landscapeLeft: 180
+            case .landscapeRight: 0
+            case .portraitUpsideDown: 270
+            default: 90
+            }
+            if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
+        }
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        let session = self.session
+        DispatchQueue.global(qos: .userInitiated).async { if !session.isRunning { session.startRunning() } }
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        let session = self.session
+        DispatchQueue.global(qos: .userInitiated).async { if session.isRunning { session.stopRunning() } }
+    }
+
+    func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput objects: [AVMetadataObject],
+                        from connection: AVCaptureConnection) {
+        guard let code = (objects.first as? AVMetadataMachineReadableCodeObject)?.stringValue,
+              code != lastCode else { return }
+        lastCode = code
+        onCode?(code)
     }
 }

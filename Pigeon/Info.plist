@@ -40,6 +40,8 @@
 	<array>
 		<string>_pigeon._tcp</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Pigeon Remote scans the code on a Pigeon's screen to set it up.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Pigeon Remote finds and controls the Pigeon devices on your home network.</string>
 	<key>UIAppFonts</key>

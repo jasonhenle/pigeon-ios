@@ -11,7 +11,7 @@ enum PigeonError: LocalizedError, Equatable {
         switch self {
         case .unauthorized: return "This Pigeon no longer recognizes this device. Add it again."
         case .api(_, _, let message): return message
-        case .transport: return "Can't reach this Pigeon. Pigeon Remote works when your phone is on the same Wi-Fi as the Pigeon."
+        case .transport: return "Can't reach this Pigeon. Pigeon Remote works when this device is on the same Wi-Fi as the Pigeon."
         case .decoding(let m): return "Unexpected reply from the device. \(m)"
         }
     }
@@ -147,7 +147,7 @@ struct PigeonClient {
         }
         guard let http = resp as? HTTPURLResponse else { throw PigeonError.transport("No response") }
         // Any answer means it's in reach, except "who are you?": that is a reset Pigeon, or another
-        // device that now has its address, and either way not one this phone can use.
+        // device that now has its address, and either way not one this device can use.
         if let id = deviceID {
             if http.statusCode == 401 { await Connectivity.shared.note(id, reachable: false) }
             else if !known { await Connectivity.shared.note(id, reachable: true) }
@@ -226,7 +226,7 @@ struct PigeonClient {
         try? await sendNoContent("POST", "/pair/cancel")
     }
 
-    /// Tell the device to forget a controller (this phone, when removing it), so it can be paired again.
+    /// Tell the Pigeon to forget a controller (this device, when removing it), so it can be paired again.
     func revokeController(id: String) async throws {
         try await sendNoContent("DELETE", "/controllers/\(id)")
     }
@@ -239,7 +239,7 @@ struct PigeonClient {
         try await send("PUT", "/setup", body: SetupProgress(step: step, skipped: skipped))
     }
 
-    /// Ends setup: the device drops its "Continue on your iPhone" screen.
+    /// Ends setup: the device drops its "Continue on your device" screen.
     func completeSetup() async throws -> SetupInfo { try await send("POST", "/setup/complete") }
 
     func device() async throws -> DeviceInfo { try await send("GET", "/device") }
@@ -307,7 +307,7 @@ struct PigeonClient {
     }
 
     /// Removes one entry from the Pigeon. The Pigeon also clears the title from its usage data
-    /// and has Pigeon Report purge it.
+    /// and has Pigeon's systems (Pigeon Report) purge it.
     func deleteHistory(_ id: String) async throws { try await sendNoContent("DELETE", "/history/\(id)") }
 
     func clearHistory() async throws {
@@ -321,7 +321,7 @@ struct PigeonClient {
         let _: StateReply = try await send("POST", "/device/restart")
     }
 
-    /// RESET on the Pigeon page: settings, rooms and paired players go back to defaults. This phone stays paired.
+    /// RESET on the Pigeon page: settings, rooms and paired players go back to defaults. This device stays paired.
     func factoryReset() async throws {
         let _: StateReply = try await send("POST", "/device/reset")
     }
@@ -351,12 +351,40 @@ struct PigeonClient {
         try await send("POST", "/rooms/\(id)/reset")
     }
 
-    /// Starts the on-screen player / audio search for a room; the device finishes pairing.
+    /// Starts the Pigeon's player / audio search for a room (follow it with `pairingStatus`).
     func startPairing(room id: String, kind: String) async throws {
         let _: StateReply = try await send("POST", "/rooms/\(id)/pairing", body: PairingRequest(kind: kind))
     }
 
+    /// What the Pigeon's search for `kind` shows right now. 404 on firmware that can't be driven from the app.
+    func pairingStatus(room id: String, kind: String) async throws -> PairingStatus {
+        try await send("GET", "/rooms/\(id)/pairing/\(kind)", timeout: 6)
+    }
+
+    /// Picks one of the search results, as the knob would.
+    func selectPairingDevice(room id: String, kind: String, index: Int) async throws -> PairingStatus {
+        try await send("POST", "/rooms/\(id)/pairing/\(kind)/select", body: PairingSelectRequest(index: index))
+    }
+
+    /// The 4-digit code the TV shows for the current step.
+    func sendPairingPIN(room id: String, kind: String, pin: String) async throws -> PairingStatus {
+        try await send("POST", "/rooms/\(id)/pairing/\(kind)/pin", body: PairingPinRequest(pin: pin))
+    }
+
+    /// Backs out of the search (best effort).
+    func cancelPairing(room id: String, kind: String) async {
+        let _: PairingStatus? = try? await send("DELETE", "/rooms/\(id)/pairing/\(kind)")
+    }
+
     func pigeonSettings() async throws -> PigeonSettings { try await send("GET", "/pigeon-settings") }
+
+    // MARK: Privacy
+
+    func privacy() async throws -> PrivacySettings { try await send("GET", "/privacy") }
+
+    func setShareData(_ on: Bool) async throws -> PrivacySettings {
+        try await send("PATCH", "/privacy", body: PrivacyPatch(shareData: on))
+    }
 
     func patchPigeonSettings(_ patch: PigeonSettingsPatch) async throws -> PigeonSettings {
         try await send("PATCH", "/pigeon-settings", body: patch)

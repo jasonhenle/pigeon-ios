@@ -83,7 +83,7 @@ struct PlayingNowSection: View {
                 PinnedTitleRow(entry: e) { Task { await model.clear() } }
             }
             if !reachable {
-                Text("You'll see what's playing when your phone is back on \(device.name)'s Wi-Fi.")
+                Text("You'll see what's playing when this device is back on \(device.name)'s Wi-Fi.")
                     .font(Theme.ui(15)).foregroundStyle(Theme.secondaryText)
             } else if detected == nil && manual == nil {
                 Text("Nothing playing").font(Theme.ui(15)).foregroundStyle(Theme.secondaryText)

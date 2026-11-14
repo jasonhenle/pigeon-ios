@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 import Observation
 
-/// Which Pigeons this phone can reach right now.
+/// Which Pigeons this device can reach right now.
 ///
 /// Pigeon Remote talks to a Pigeon directly over the home network, so away from that network
 /// the Pigeon is unreachable. Every request through a client that knows its device id reports
@@ -33,7 +33,7 @@ final class Connectivity {
 enum ResponseCache {
     /// GET paths worth keeping, by their first segment.
     private static let cachedRoots: Set<String> = [
-        "device", "capabilities", "pigeon-settings", "rooms", "display", "visualizer", "sports", "history", "setup",
+        "device", "capabilities", "pigeon-settings", "rooms", "display", "visualizer", "sports", "history", "privacy", "setup",
     ]
     /// Under a cached root, but live or too short-lived to show from memory.
     private static let uncachedPaths: Set<String> = ["/sports/games"]
@@ -49,7 +49,8 @@ enum ResponseCache {
     }
 
     static func isCacheable(_ path: String) -> Bool {
-        cachedRoots.contains(rootSegment(path)) && !uncachedPaths.contains(path)
+        // A device search ("/rooms/{id}/pairing/player") is live: never show it from memory.
+        cachedRoots.contains(rootSegment(path)) && !uncachedPaths.contains(path) && !path.contains("/pairing")
     }
 
     private static func folder(_ deviceID: String) -> URL {

@@ -56,7 +56,7 @@ final class HistoryModel: ObservableObject {
     }
 }
 
-/// Everything this Pigeon has shown, newest first. Removing a title also removes it from Pigeon Report.
+/// Everything this Pigeon has shown, newest first. Removing a title also removes it from Pigeon's systems.
 struct HistoryView: View {
     @StateObject private var model: HistoryModel
     @State private var removing: HistoryEntry?
@@ -76,7 +76,7 @@ struct HistoryView: View {
                                 .font(Theme.ui(15)).foregroundStyle(Theme.secondaryText)
                                 .frame(maxWidth: .infinity).padding(.top, 40).multilineTextAlignment(.center)
                         } else {
-                            Text("Removing a title also removes it from Pigeon Report.")
+                            Text("Removing a title also removes it from Pigeon's systems.")
                                 .font(Theme.ui(13)).foregroundStyle(Theme.secondaryText)
                         }
                         ForEach(HistoryModel.byDay(entries), id: \.day) { group in
@@ -110,13 +110,13 @@ struct HistoryView: View {
             Button("Remove", role: .destructive) { if let e = removing { Task { await model.remove(e) } } }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("It is removed from this Pigeon's history and from Pigeon Report. This can't be undone.")
+            Text("It is removed from this Pigeon's history and from Pigeon's systems. This can't be undone.")
         }
         .alert("Clear all history?", isPresented: $confirmClear) {
             Button("Clear All", role: .destructive) { Task { await model.clear() } }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Every title is removed from this Pigeon's history and from Pigeon Report. This can't be undone.")
+            Text("Every title is removed from this Pigeon's history and from Pigeon's systems. This can't be undone.")
         }
     }
 }

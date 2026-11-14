@@ -11,8 +11,8 @@ settings:
     # separately). Info.plist reads these. Every iOS change bumps both together:
     # MARKETING_VERSION 0.1.N and CURRENT_PROJECT_VERSION N (a test checks they agree).
     # Then run tools/sync-pigeon-ios.sh.
-    MARKETING_VERSION: "0.1.18"
-    CURRENT_PROJECT_VERSION: "18"
+    MARKETING_VERSION: "0.1.20"
+    CURRENT_PROJECT_VERSION: "20"
 targets:
   Pigeon:
     type: application
@@ -45,6 +45,7 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: com.jasonhenle.pigeon.setup
             CFBundleURLSchemes: [pigeon]
+        NSCameraUsageDescription: Pigeon Remote scans the code on a Pigeon's screen to set it up.
         NSLocalNetworkUsageDescription: Pigeon Remote finds and controls the Pigeon devices on your home network.
         NSBonjourServices: [_pigeon._tcp]
         NSAppTransportSecurity:

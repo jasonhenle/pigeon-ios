@@ -4,6 +4,8 @@ struct DevicesView: View {
     @EnvironmentObject private var store: DeviceStore
     @EnvironmentObject private var browser: DeviceBrowser
     @State private var showAdd = false
+    @State private var showScanner = false
+    @EnvironmentObject private var setup: SetupCoordinator
     /// The Pigeon whose pages are open, if any: the app wears its color only there.
     @State private var path: [KnownDevice] = []
 
@@ -21,10 +23,17 @@ struct DevicesView: View {
                 ScrollView {
                     VStack(spacing: 12) {
                         if store.devices.isEmpty {
-                            VStack(spacing: 10) {
+                            VStack(spacing: 14) {
                                 LCDLabel(text: "Pigeon Remote", size: 34)
-                                Text("Tap + to add a Pigeon and start searching.")
+                                Text("Scan the code on a new Pigeon's screen, or tap + to find one on this network.")
                                     .font(Theme.ui(16)).foregroundStyle(Theme.secondaryText)
+                                    .multilineTextAlignment(.center)
+                                Button { showScanner = true } label: {
+                                    Label("Scan Code", systemImage: "qrcode.viewfinder")
+                                        .font(Theme.uiBold(17)).foregroundStyle(.black)
+                                        .frame(maxWidth: 320).padding(.vertical, 14)
+                                        .background(Theme.accent, in: RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
+                                }
                             }.padding(.top, 40)
                         }
                         ForEach(store.devices) { d in
@@ -52,7 +61,14 @@ struct DevicesView: View {
                 }
             }
             .sheet(isPresented: $showAdd) { AddDeviceView() }
+            .sheet(isPresented: $showScanner) { QRScanSheet() }
         }
+        // A scanned Pigeon code beats a manual add (or anything else) that is under way.
+        .onChange(of: setup.interruptions) { _, _ in
+            showAdd = false
+            showScanner = false
+        }
+        .onChange(of: showAdd || showScanner) { _, open in setup.sheetOpen = open }
         .onAppear { ThemeStore.shared.follow(path.first?.id) }
         .onChange(of: path) { _, p in ThemeStore.shared.follow(p.first?.id) }
     }
@@ -212,7 +228,7 @@ private struct DevicePage: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Not connected").font(Theme.uiBold(17)).foregroundStyle(.white)
                 Text("Pigeon Remote reaches \(device.name) over its Wi-Fi. This is what it showed last; "
-                     + "changes work again once your phone is back on that network.")
+                     + "changes work again once this device is back on that network.")
                     .font(Theme.ui(13)).foregroundStyle(Theme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -273,7 +289,7 @@ private struct DevicePage: View {
         }
     }
 
-    // MARK: System: name, rooms, history, status, update / factory reset / restart, remove
+    // MARK: System: name, rooms, privacy (sharing, history), feedback, status, update / factory reset / restart, remove
 
     @ViewBuilder private var system: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -290,12 +306,13 @@ private struct DevicePage: View {
             RoomsCard(client: client, canReset: caps.contains("room_reset"), embedded: true).id(reload)
         }
         Divider().overlay(Theme.inactive)
-        if caps.contains("history") {
-            NavigationLink { HistoryView(client: client) } label: {
+        if caps.contains("history") || caps.contains("privacy") {
+            NavigationLink { PrivacyView(client: client, caps: caps) } label: {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Now Playing History").font(Theme.uiBold(16)).foregroundStyle(.white)
-                        Text("What this Pigeon has shown. Remove anything you don't want kept.")
+                        Text("Privacy").font(Theme.uiBold(16)).foregroundStyle(.white)
+                        Text(caps.contains("privacy") ? "Data sharing and now playing history."
+                             : "Now playing history.")
                             .font(Theme.ui(12)).foregroundStyle(Theme.secondaryText)
                             .multilineTextAlignment(.leading)
                     }
@@ -315,7 +332,7 @@ private struct DevicePage: View {
             row("Address", "\(device.host):\(device.port)")
         }
         if caps.contains("restart") || caps.contains("update") || caps.contains("factory_reset") {
-            MaintenanceControls(client: client, caps: caps) { reload += 1 }
+            MaintenanceControls(client: client, caps: caps) { Task { await afterReset() } }
         }
         Button(role: .destructive) { confirmRemove = true } label: {
             Text("Remove from this device").font(Theme.uiBold(16))
@@ -358,6 +375,21 @@ private struct DevicePage: View {
         }
         if caps.contains("setup"), let s = try? await client.setup() {
             setupPending = !s.isDone
+        }
+    }
+
+    /// After a factory reset nothing the page shows may come from before it: forget the kept answers
+    /// and re-read now and again while the Pigeon finishes resetting (it replies before it is done).
+    private func afterReset() async {
+        ResponseCache.remove(device.id)
+        settings.forget()
+        info = nil
+        status = nil
+        name = ""
+        for delay in [0.0, 2.5, 6.0] {
+            if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
+            ResponseCache.remove(device.id)
+            reload += 1
         }
     }
 
@@ -440,7 +472,7 @@ private struct CollapsibleTile<Content: View>: View {
 /// The device page's way into the clock's settings, drawn as Pigeon's digital clock:
 /// date, HH:MM:SS and the 60 second boxes that fill as the minute goes by.
 struct PigeonClockSettingsButton: View {
-    /// Supplies the device's 12 / 24 hour choice and time zone; the phone's are used until it loads.
+    /// Supplies the device's 12 / 24 hour choice and time zone; this device's are used until it loads.
     let settings: PigeonSettings?
 
     private var timeZone: TimeZone {
@@ -536,12 +568,11 @@ final class RoomsModel: ObservableObject {
         await run { self.data = try await self.client.resetRoom(room.id) }
     }
 
-    func startPairing(_ room: Room, kind: String) async {
-        await run {
-            try await self.client.startPairing(room: room.id, kind: kind)
-            self.data = try await self.client.rooms()
-            self.notice = "Pigeon is searching for \(kind == "player" ? "players" : "audio devices"). Pick one on its screen."
-        }
+    /// Adding a player / audio device pairs in the current room: switch to `room` first, then `open`
+    /// the pairing sheet (which starts the Pigeon's search and is driven from the app).
+    func add(_ room: Room, kind: String, open: @escaping () -> Void) async {
+        if !room.current { await run { self.data = try await self.client.switchRoom(room.id) } }
+        if errorText == nil { open() }
     }
 
     private func run(_ work: @escaping () async throws -> Void) async {
@@ -554,6 +585,8 @@ final class RoomsModel: ObservableObject {
 
 struct RoomsCard: View {
     @StateObject private var model: RoomsModel
+    /// "player" or "audio" while the Add sheet is up.
+    @State private var adding: PairingKind?
     @State private var renaming: Room?
     @State private var resetting: Room?
     @State private var switching: Room?
@@ -563,11 +596,15 @@ struct RoomsCard: View {
     /// Inside another tile (the System section): no tile of its own.
     let embedded: Bool
     private let deviceID: String?
+    private let client: PigeonClient
+
+    struct PairingKind: Identifiable { let id: String }
 
     private var reachable: Bool { deviceID.map(Connectivity.shared.isReachable) ?? true }
 
     init(client: PigeonClient, canReset: Bool = false, embedded: Bool = false) {
         _model = StateObject(wrappedValue: RoomsModel(client: client))
+        self.client = client
         self.canReset = canReset
         self.embedded = embedded
         deviceID = client.deviceID
@@ -578,6 +615,9 @@ struct RoomsCard: View {
             if embedded { rooms } else { rooms.tile() }
         }
         .task { await model.load() }
+        .sheet(item: $adding, onDismiss: { Task { await model.load() } }) { k in
+            DevicePairingSheet(client: client, kind: k.id)
+        }
         .alert("Rename room", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("ROOM NAME", text: $newName)
                 .textInputAutocapitalization(.characters)
@@ -628,10 +668,10 @@ struct RoomsCard: View {
                         Button { newName = r.name.uppercased(); renaming = r } label: {
                             Label("Rename", systemImage: "pencil")
                         }
-                        Button { Task { await model.startPairing(r, kind: "player") } } label: {
+                        Button { Task { await model.add(r, kind: "player") { adding = .init(id: "player") } } } label: {
                             Label("Add player", systemImage: "appletv")
                         }
-                        Button { Task { await model.startPairing(r, kind: "audio") } } label: {
+                        Button { Task { await model.add(r, kind: "audio") { adding = .init(id: "audio") } } } label: {
                             Label("Add audio", systemImage: "hifispeaker")
                         }
                     } label: {
@@ -653,7 +693,7 @@ struct RoomsCard: View {
             if !reachable {
                 // The page's banner already says why; nothing here is an error.
                 if model.data == nil {
-                    Text("Rooms show here once your phone is back on this Pigeon's Wi-Fi.")
+                    Text("Rooms show here once this device is back on this Pigeon's Wi-Fi.")
                         .font(Theme.ui(13)).foregroundStyle(Theme.secondaryText)
                 }
             } else if let e = model.errorText {
@@ -781,7 +821,7 @@ struct MaintenanceControls: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Theme, clock, location, rooms and paired players and receivers go back to their defaults. This can't be undone. This phone stays connected.")
+            Text("Theme, clock, location, rooms and paired players and receivers go back to their defaults. This can't be undone. This device stays connected.")
         }
     }
 
@@ -804,6 +844,13 @@ final class PigeonSettingsModel: ObservableObject {
     @Published var errorText: String?
     private let client: PigeonClient
     init(client: PigeonClient) { self.client = client }
+
+    /// Drop what was read (after a factory reset), so nothing stale shows while it reloads.
+    func forget() {
+        data = nil
+        zipText = ""
+        errorText = nil
+    }
 
     func load() async {
         do {

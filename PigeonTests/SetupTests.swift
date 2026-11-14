@@ -10,6 +10,30 @@ final class SetupTests: XCTestCase {
         XCTAssertEqual(link, SetupLink(deviceID: "pgn-7f3a91", name: "Pigeon Clock", code: "482913", fingerprint: fp))
     }
 
+    /// A scanned code wins over a manual add already on screen: sheets close, then setup opens.
+    @MainActor
+    func testScannedCodeInterruptsOpenSheet() async throws {
+        let c = SetupCoordinator()
+        c.sheetOpen = true
+        XCTAssertTrue(c.open(URL(string: "pigeon://setup#id=pgn-1&code=123456")!))
+        XCTAssertEqual(c.interruptions, 1)
+        XCTAssertNil(c.request)  // waits for the sheet to close
+        try await Task.sleep(for: .milliseconds(900))
+        XCTAssertEqual(c.request, .link(SetupLink(deviceID: "pgn-1", name: "Pigeon", code: "123456")))
+        c.sheetOpen = false
+        XCTAssertFalse(c.open(URL(string: "https://example.com")!))
+        XCTAssertEqual(c.interruptions, 1)
+    }
+
+    func testDecodesPairingStatus() throws {
+        let json = #"{"kind":"player","state":"pin","devices":[{"index":0,"name":"Living Room","address":"10.0.0.5","model":null}],"device_name":"Living Room","pin_step":2,"pin_steps":2,"saved":null,"error":null}"#
+        let d = JSONDecoder(); d.keyDecodingStrategy = .convertFromSnakeCase
+        let s = try d.decode(PairingStatus.self, from: Data(json.utf8))
+        XCTAssertEqual(s.state, "pin")
+        XCTAssertEqual(s.pinStep, 2)
+        XCTAssertEqual(s.devices.first?.name, "Living Room")
+    }
+
     func testDirectAddress() throws {
         let link = try XCTUnwrap(SetupLink(url: URL(string: "pigeon://setup#id=pgn-1&host=10.0.4.44&port=8780")!))
         XCTAssertEqual(link.host, "10.0.4.44")

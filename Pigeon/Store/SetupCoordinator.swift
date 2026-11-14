@@ -71,12 +71,30 @@ final class SetupCoordinator: ObservableObject {
     }
 
     @Published var request: Request?
+    /// Bumped when a setup link arrives: anything else on screen (Add device, a code being typed)
+    /// closes so the QR code wins over the input already under way.
+    @Published private(set) var interruptions = 0
+    /// A sheet is up over the device list; setup waits for it to close before covering the app.
+    var sheetOpen = false
 
     /// True when the app should handle the URL (it is a setup link).
     @discardableResult
     func open(_ url: URL) -> Bool {
         guard let link = SetupLink(url: url) else { return false }
-        request = .link(link)
+        present(.link(link))
         return true
+    }
+
+    /// Shows setup now, closing whatever sheet is in the way first.
+    func present(_ next: Request) {
+        interruptions += 1
+        guard sheetOpen, request == nil else {
+            request = next
+            return
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(650))  // let the sheets finish closing
+            self.request = next
+        }
     }
 }

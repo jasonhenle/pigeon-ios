@@ -117,6 +117,19 @@ struct Artwork: Equatable {
     var isEmpty: Bool { backdropUrl == nil && logoUrl == nil && posterUrl == nil && artworkPath == nil }
 }
 
+// MARK: Privacy
+
+/// Whether this Pigeon shares now playing data with the developer (`GET /privacy`), and whether
+/// its owner has been asked yet (setup asks once).
+struct PrivacySettings: Codable, Equatable {
+    var shareData: Bool
+    var asked: Bool
+}
+
+struct PrivacyPatch: Codable, Equatable {
+    var shareData: Bool
+}
+
 // MARK: Now playing history
 
 /// One title or track the Pigeon has shown (`GET /history`), newest first.
@@ -354,6 +367,32 @@ struct UpdateInfo: Codable, Equatable {
 struct StateReply: Codable, Equatable { var state: String }
 
 struct PairingRequest: Codable { var kind: String }
+
+/// The Pigeon's own player / audio search, as the app follows and drives it
+/// (`GET /rooms/{id}/pairing/{kind}`), so nobody has to touch the Pigeon.
+struct PairingStatus: Codable, Equatable {
+    struct Device: Codable, Equatable, Identifiable {
+        var index: Int
+        var name: String
+        var address: String?
+        var model: String?
+        var id: Int { index }
+    }
+
+    var kind: String
+    /// idle | scanning | results | pin | pairing | paired | failed
+    var state: String
+    var devices: [Device]
+    var deviceName: String?
+    /// Apple TV pairs twice, each with its own code on the TV: step 1 or 2 of `pinSteps`.
+    var pinStep: Int?
+    var pinSteps: Int?
+    var saved: String?
+    var error: String?
+}
+
+struct PairingSelectRequest: Codable { var index: Int }
+struct PairingPinRequest: Codable { var pin: String }
 
 
 // MARK: Sports (Settings > Pigeon > SPORTS)

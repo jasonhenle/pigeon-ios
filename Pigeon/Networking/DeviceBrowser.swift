@@ -6,7 +6,7 @@ struct DiscoveredDevice: Identifiable, Equatable {
     var name: String
     var product: String
     var claimed: Bool
-    /// The device is showing its Welcome screen or waiting for a phone to finish setup.
+    /// The device is showing its Welcome screen or waiting for an app to finish setup.
     var needsSetup: Bool = false
     var endpoint: NWEndpoint
 }

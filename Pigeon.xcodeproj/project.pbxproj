@@ -11,6 +11,7 @@
 		121DB773A35E34FBBEF8FC78 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5013FC18FF49E1805AE52DBA /* SearchView.swift */; };
 		13C821A843087376557424BC /* VisualizerPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77E2740B58302EDC20F72920 /* VisualizerPreview.swift */; };
 		229BA0AFD578E9B12CAC7796 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C65045E40B6726CB54509F0 /* Keychain.swift */; };
+		2BF05FFB7095F29D195A5815 /* PrivacyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78FD59304E38D42E1E3BD22 /* PrivacyTests.swift */; };
 		31E66E040635671A8175C92B /* API.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3884DEDC3F80F5BE1B7B5B4 /* API.swift */; };
 		346F6336557016AA79A6FE34 /* OfflineAndFeedbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05992A0A6427DB59F17194A5 /* OfflineAndFeedbackTests.swift */; };
 		348DD35B94B7FFCE61A51B0D /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = A7C01AA68AE4B49AB9463DE1 /* AppIcon.icon */; };
@@ -41,6 +42,7 @@
 		D45C89CC4C6B55C1F424BB92 /* VisualizerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 417BC2EAA7CAADD62359ABFB /* VisualizerView.swift */; };
 		DBB05F56D8050FFF4ED59A7E /* viz_arc_vu.png in Resources */ = {isa = PBXBuildFile; fileRef = 9EA8A9025257D64FA3BE5CD6 /* viz_arc_vu.png */; };
 		E70DB177052A319EB162F2BE /* SharpSansSemibold.otf in Resources */ = {isa = PBXBuildFile; fileRef = 4A64913793A2F88E121414D0 /* SharpSansSemibold.otf */; };
+		F2AF857067D708FD76EA1C2B /* PrivacyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEB32D3CB1B0FEE982C19C00 /* PrivacyView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -85,7 +87,9 @@
 		B2B8C5EB22D046A0BB075792 /* SetupCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupCoordinator.swift; sourceTree = "<group>"; };
 		B3884DEDC3F80F5BE1B7B5B4 /* API.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API.swift; sourceTree = "<group>"; };
 		B6C3EDE037F6DF21B83900EC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		BEB32D3CB1B0FEE982C19C00 /* PrivacyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyView.swift; sourceTree = "<group>"; };
 		C0C2071EF7144C69A2CC9B31 /* viz_bars.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = viz_bars.png; sourceTree = "<group>"; };
+		C78FD59304E38D42E1E3BD22 /* PrivacyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyTests.swift; sourceTree = "<group>"; };
 		C808434DA7231B7171C63696 /* viz_faux_31.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = viz_faux_31.png; sourceTree = "<group>"; };
 		CE02FA4435C9A5E6EC3DB57E /* SetupFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupFlowView.swift; sourceTree = "<group>"; };
 		DC9D0A8E84FD5A69BF77BAC8 /* viz_sweep_vu.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = viz_sweep_vu.png; sourceTree = "<group>"; };
@@ -110,6 +114,7 @@
 				334DA9919C813F4187602246 /* FeedbackView.swift */,
 				369FA9FE65D8FA561194A382 /* HistoryView.swift */,
 				EE891CB6183A7CFAB937A97F /* NowPlayingArt.swift */,
+				BEB32D3CB1B0FEE982C19C00 /* PrivacyView.swift */,
 				03C1744ECA1BF8B623A51E9A /* RootView.swift */,
 				5013FC18FF49E1805AE52DBA /* SearchView.swift */,
 				CE02FA4435C9A5E6EC3DB57E /* SetupFlowView.swift */,
@@ -154,6 +159,7 @@
 				A5D705F3F3E9ED241835C65C /* ClientTests.swift */,
 				42D357C93B72DD143598DA8B /* HistoryAndThemeTests.swift */,
 				05992A0A6427DB59F17194A5 /* OfflineAndFeedbackTests.swift */,
+				C78FD59304E38D42E1E3BD22 /* PrivacyTests.swift */,
 				2F346992B1A07FBEDC735386 /* SetupTests.swift */,
 			);
 			path = PigeonTests;
@@ -332,6 +338,7 @@
 				7A34D975FAAE52DF5F0D849C /* NowPlayingArt.swift in Sources */,
 				942E8ECE179F68ACFED56A69 /* PigeonApp.swift in Sources */,
 				9FFF9F2957F4B924A1991AA2 /* PigeonClient.swift in Sources */,
+				F2AF857067D708FD76EA1C2B /* PrivacyView.swift in Sources */,
 				93611D4B5EBD522A5BC1392D /* RootView.swift in Sources */,
 				121DB773A35E34FBBEF8FC78 /* SearchView.swift in Sources */,
 				BA418D08B1E52DB68D427A69 /* SetupCoordinator.swift in Sources */,
@@ -350,6 +357,7 @@
 				79B60FD664F648BC7EF677BB /* ClientTests.swift in Sources */,
 				B4338EC714F34F7680AED4E2 /* HistoryAndThemeTests.swift in Sources */,
 				346F6336557016AA79A6FE34 /* OfflineAndFeedbackTests.swift in Sources */,
+				2BF05FFB7095F29D195A5815 /* PrivacyTests.swift in Sources */,
 				C040D357276C00AE846E9AB7 /* SetupTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -434,7 +442,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 18;
+				CURRENT_PROJECT_VERSION = 20;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -447,7 +455,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.1.18;
+				MARKETING_VERSION = 0.1.20;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -510,7 +518,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 18;
+				CURRENT_PROJECT_VERSION = 20;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -529,7 +537,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.1.18;
+				MARKETING_VERSION = 0.1.20;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

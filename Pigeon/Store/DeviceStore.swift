@@ -36,7 +36,7 @@ final class DeviceStore: ObservableObject {
         }
     }
 
-    /// Stable id this phone sends when claiming, so re-claiming replaces rather than duplicates.
+    /// Stable id this device sends when claiming, so re-claiming replaces rather than duplicates.
     var controllerID: String {
         if let id = defaults.string(forKey: Keys.controller) { return id }
         let id = UUID().uuidString
@@ -83,7 +83,7 @@ final class DeviceStore: ObservableObject {
         persist()
     }
 
-    /// Unpairs on the device too (best effort), otherwise it still counts this phone as its controller
+    /// Unpairs on the device too (best effort), otherwise it still counts this device as its controller
     /// and refuses a new pairing with `already_claimed`.
     func unpair(_ device: KnownDevice) async {
         try? await client(for: device).revokeController(id: controllerID)
